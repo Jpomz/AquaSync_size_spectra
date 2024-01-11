@@ -10,30 +10,30 @@ dat <- readRDS("derived_data/filtered_size_jan-11.RDS")
 #   select(dat_id, site) %>%
 #   unique() %>% View
 
-filtered_vector <- c(
-  "size_spectra_bio_BA.xlsx",
-  "size_spectra_bio_MG.xlsx",
-  "size_spectra_bio_PA.xlsx",
-  "size_spectra_bio_SP.xlsx",
-  "df_O_Gorman_1.xlsx",
-  "df_Perkins.xlsx" ,
-  "df_Pomeranz.xlsx"
-)
-
-test_dat <- dat %>%
-  filter(dat_id %in% filtered_vector)
-
-test_dat %>% pull(site) %>% unique() %>% sample(5)
-
-test_dat <- test_dat %>%
-  filter(site %in% c("Upper Llugwy",
-                     "P21",
-                     "River Lyde",
-                     "Hengill IS7 B",
-                     "Narrator Brook")) %>%
-  group_by(dat_id, site) %>% 
-  mutate(xmin = min(body_mass),
-         xmax = max(body_mass)) 
+# filtered_vector <- c(
+#   "size_spectra_bio_BA.xlsx",
+#   "size_spectra_bio_MG.xlsx",
+#   "size_spectra_bio_PA.xlsx",
+#   "size_spectra_bio_SP.xlsx",
+#   "df_O_Gorman_1.xlsx",
+#   "df_Perkins.xlsx" ,
+#   "df_Pomeranz.xlsx"
+# )
+# 
+# test_dat <- dat %>%
+#   filter(dat_id %in% filtered_vector)
+# 
+# test_dat %>% pull(site) %>% unique() %>% sample(5)
+# 
+# test_dat <- test_dat %>%
+#   filter(site %in% c("Upper Llugwy",
+#                      "P21",
+#                      "River Lyde",
+#                      "Hengill IS7 B",
+#                      "Narrator Brook")) %>%
+#   group_by(dat_id, site) %>% 
+#   mutate(xmin = min(body_mass),
+#          xmax = max(body_mass)) 
 
 # isdbayes ###
 
@@ -52,6 +52,7 @@ bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
 # move mouse app
 
 # fit model ####
+test_dat <- dat
 fit1 = brm(body_mass | vreal(ind_n, xmin, xmax) ~ (1|site), 
            data = test_dat,
            stanvars = stanvars,
