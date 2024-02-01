@@ -46,6 +46,7 @@ for(i in 1:length(file_paths)){
   data_list[[i]] <- dat_in
 }
 
+# check files
 list_to_fix_names
 
 names(data_list) <- file_paths
@@ -67,16 +68,23 @@ dat_df$body_weight_units %>% unique()
 # need to add code to update body_weight_units
 dat_df <- dat_df %>%
   mutate(body_mass = case_when(
+    # convert g to mg
+    # convert wet weight to dry weight
+    # Using an arbitrary value of 0.25 for now
     body_weight_units == "g" ~ body_mass *1000,
     body_weight_units == "g WW" ~ body_mass *1000 *0.25,
     body_weight_units == "mg DW" ~ body_mass,
     body_weight_units == "mg dry mass" ~ body_mass,
-    #body_weight_units == "mg wet weight" ~ body_mass,
-    # convert wet weight to dry weight
-    # Using an arbitrary value of 0.25 for now
+    body_weight_units == "mg wet weight" ~ body_mass * 0.25,
     body_weight_units == "mg WW" ~ body_mass * 0.25,
     body_weight_units == "M.mg" ~ body_mass,
-    body_weight_units == "mg" ~ body_mass
+    body_weight_units == "mg" ~ body_mass,
+    # assuming "dry_weight" is in mg
+    body_weight_units == "dry_weight" ~ body_mass,
+    body_weight_units == "grams/wet" ~ body_mass *1000 *0.25,
+    body_weight_units == "mg_DM" ~ body_mass,
+    body_weight_units == "mg_dry_mass" ~ body_mass,
+    body_weight_units == "mg (dry_mass)" ~ body_mass
   ))
 
 # change weight units
@@ -108,22 +116,27 @@ dat_out <- dat_df |>
 
 # Latitude ####
 #read in site data for lat long ####
-site_list <- list()
-for (i in 1:length(file_paths)){
-  df_site <- read_excel(
-    path = paste0("data/",
-                  path = file_paths[i]), 
-    sheet = "site_data")
-  df_site <- df_site %>%
-    select(site, geographical_latitude)
-  site_list[[i]] <- df_site
-}
-
-lat_df <- bind_rows(site_list) %>%
-  unique()
-
-dat_lat <- left_join(dat_out,
-                     lat_df)
+# Arranz identical site names ??? ####
+# site_list <- list()
+# for (i in 1:length(file_paths)){
+#   df_site <- read_excel(
+#     path = paste0("data/",
+#                   path = file_paths[i]), 
+#     sheet = "site_data")
+#   df_site <- df_site %>%
+#     select(site, geographical_latitude) %>%
+#     mutate(site = as.character(site))
+#   site_list[[i]] <- df_site
+# }
+# 
+# 
+# names(site_list) <- file_paths
+# lat_df <- bind_rows(site_list, .id = "id")
+# lat_df <- lat_df %>%
+#   rename(dat_id = id)
+# 
+# dat_lat <- left_join(dat_out,
+#                      lat_df)
 
 # save data ####
 saveRDS(dat_out, "derived_data/filtered_size_jan-11.RDS")
