@@ -96,6 +96,7 @@ run_4_10_time <- run_4_10_end - run_4_10_start
 saveRDS(run_4_10_time, file = paste0("results/run_4_10_time_", Sys.Date(), ".rds"))
 
 run_4_2000_start <- Sys.time()
+
 fit_4_2000 = brm(body_mass | vreal(ind_n, xmin, xmax) ~ (1|site), 
                  data = test_dat,
                  stanvars = stanvars,
