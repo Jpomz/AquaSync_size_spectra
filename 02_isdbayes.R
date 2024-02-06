@@ -1,5 +1,6 @@
 # isd bayes fitting
 
+devtools::install_github("jswesner/isdbayes", upgrade = FALSE)
 library(tidyverse)
 library(brms)
 library(isdbayes)
