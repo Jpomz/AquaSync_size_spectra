@@ -67,7 +67,7 @@ bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
 # test_dat <- dat
 
 # full data 8 chains, 100 iter
-iter = 1#100
+iter = 100
 chain_core = 8
 fit1_start <- Sys.time()
 fit_full_8c_100i <- brm(body_mass | vreal(ind_n, xmin, xmax) ~
