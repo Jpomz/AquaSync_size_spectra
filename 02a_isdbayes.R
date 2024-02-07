@@ -92,6 +92,7 @@ fit2 = brm(body_mass | vreal(ind_n, xmin, xmax) ~ (1|site),
            prior = bprior,
            family = paretocounts(),
            chains = 4,
+           cores = 4,
            iter = iter)
 
 fit2_end <- Sys.time()
@@ -109,6 +110,7 @@ fit3 = brm(body_mass | vreal(ind_n, xmin, xmax) ~ (1|site),
            prior = bprior,
            family = paretocounts(),
            chains = 4,
+           cores = 4,
            iter = iter)
 
 fit3_end <- Sys.time()
