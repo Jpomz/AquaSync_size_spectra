@@ -83,7 +83,9 @@ fit_full_8c_100i <- brm(body_mass | vreal(ind_n, xmin, xmax) ~
 fit1_end <- Sys.time()
 fit1_run <- fit1_end - fit1_start
 
-saveRDS(fit1_run, paste0("results/fit_full_8c_100i_run_", Sys.Date(), ".rds"))
+saveRDS(fit1_run, 
+        paste0("results/run_fit_full_", chain_core, "c",
+               iter, "i_", Sys.Date(), ".rds"))
 saveRDS(fit_full_8c_100i,
         paste0("results/fit_full_", chain_core, "c",
                iter, "i_", Sys.Date(), ".rds"))
