@@ -70,9 +70,12 @@ dat <- readRDS("derived_data/filtered_size_jan-11.RDS")%>%
 dat_split <- dat %>%
   split(dat$group_id)
 
+nrow_dat_split <- dat_split %>%
+  map_dbl(\(dat) nrow(dat)) 
+
 plan(cluster, workers = 10)
 
-vecDiff = 5
+vecDiff = 0.5 # bigger = more estimates, but huge CI's
 
 mle_start <- Sys.time()
 mle_count <- dat_split |>
@@ -113,6 +116,9 @@ mle_count_results <- bind_rows(mle_count_rows) %>%
               select(dat_id, site, group_id) %>%
               unique())
 
+# add nrow to results data frame
+mle_count_results$nrow_dat_split <- nrow_dat_split
+
 # total rows
 mle_count_results %>%
   nrow()
@@ -121,8 +127,8 @@ mle_count_results %>%
 mle_count_results %>%
   filter(is.na(mle_estimate)) %>%
   nrow()
-350/2659
-#~13% data with no mle estimate
+# 134/2659
+#~5% data with no mle estimate
 
 
 saveRDS(mle_run, paste0("results/mle_run_", Sys.Date(), ".rds"))

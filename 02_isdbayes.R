@@ -71,7 +71,7 @@ get_prior(body_mass | vreal(ind_n, xmin, xmax) ~ (1|site),
           family = paretocounts())
 # set priors
 bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
-            prior(exponential(2), class = sd))
+            prior(exponential(2), class = sd)) #exponential(10)?
 
 # plot(density(rnorm(1000, -1.3, 0.4)))
 # plot(density(rexp(1000, 2)))

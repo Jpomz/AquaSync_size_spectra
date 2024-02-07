@@ -139,4 +139,7 @@ dat_out <- dat_df |>
 #                      lat_df)
 
 # save data ####
-saveRDS(dat_out, "derived_data/filtered_size_jan-11.RDS")
+saveRDS(dat_out, paste0("derived_data/filtered_size_", Sys.Date(), ".RDS"))
+
+paste0("derived_data/filtered_size_", Sys.Date(), ".RDS")
+
