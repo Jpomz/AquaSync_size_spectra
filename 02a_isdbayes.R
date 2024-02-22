@@ -56,8 +56,9 @@ test_dat <- dat %>%
 #           stanvars = stanvars,
 #           family = paretocounts())
 # set priors
+exp_prior = 12
 bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
-            prior(exponential(8), class = sd)) #exponential(2, 8, 10)?
+            prior(exponential(12), class = sd)) #exponential(2, 8, 10)?
 
 # plot(density(rnorm(1000, -1.3, 0.4)))
 # plot(density(rexp(1000, 8)))
@@ -67,7 +68,7 @@ bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
 # test_dat <- dat
 
 # full data 8 chains, 100 iter
-iter = 100
+iter = 1#100
 chain_core = 8
 fit1_start <- Sys.time()
 fit_full_8c_100i <- brm(body_mass | vreal(ind_n, xmin, xmax) ~
@@ -85,7 +86,7 @@ fit1_run <- fit1_end - fit1_start
 
 saveRDS(fit1_run, 
         paste0("results/run_fit_full_", chain_core, "c",
-               iter, "i_", Sys.Date(), ".rds"))
+               iter, "i_", exp_prior, "exp_", Sys.Date(), ".rds"))
 saveRDS(fit_full_8c_100i,
         paste0("results/fit_full_", chain_core, "c",
                iter, "i_", Sys.Date(), ".rds"))
