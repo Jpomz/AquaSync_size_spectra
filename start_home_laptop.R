@@ -34,6 +34,31 @@ name_target <- c("site",
 file_paths <- list.files("data/", 
                          pattern = "*.xlsx")
 
+#file_rename <- c("Culp",
+#                 "Morin",
+#                 "Principe",
+#                 "anbiotek-VG",
+#                 "ekolur-VG",
+#                 "Aitor-FLM",
+#                 "RO",
+#                 "Arranz-01",
+#                 "Aitor-UPM",
+#                 "Estevez-Laranaga",
+#                 "deGuzman-Laranaga",
+#                 "Martel",
+#                 "NEON",
+#                 "OGorman",
+#                 "Perkins",
+#                 "Pomeranz-NZ",
+#                 "Saito-Cananeia",
+#                 "Saito-scaleBio",
+#                 "DK-fish",
+#                 "Myanmar-fish",
+#                 "Valente-BA",
+#                 "Valente-MG",
+#                 "Valente-PA",
+#                 "Valente-SP")
+
 data_list <- list()
 list_to_fix_names <- list()
 
@@ -63,52 +88,125 @@ for(i in 1:length(file_paths)){
 
 list_to_fix_names
 
+# vector of files to remove
+# numeric vector of list item number
+rm_vec <- c(2, 6, 10, 12)
+
+data_list <- data_list[-rm_vec]
+#rm(list_to_fix_names)
+
+file_paths <- file_paths[-rm_vec]
 names(data_list) <- file_paths
 dat_df <- bind_rows(data_list, .id = "id")
-
 dat_df <- dat_df %>%
-  separate(id, into = c("rm", "dat_id", "rm2")) %>%
-  select(-rm, -rm2)
+  rename(dat_id = id)
+
+# dat_df <- dat_df %>%
+#   separate(id, into = c("rm", "dat_id", "rm2")) %>%
+#   select(-rm, -rm2)
 
 # Summarize data sets ####
-dat_df %>%
-  pull(count) %>%
-  unique()
+# dat_df %>%
+#   pull(count) %>%
+#   unique()
 # counts are all over the place
 
+# sites with na body-weights
+dat_df %>%
+  filter(is.na(body_weight_units)) %>%
+  select(dat_id, site) %>%
+  unique()
+# sites with na body-mass
+dat_df %>%
+  filter(is.na(body_mass)) %>%
+  select(dat_id, site) %>%
+  unique()
+# sites with na body-mass
+dat_df %>%
+  filter(is.na(body_mass)) %>%
+  group_by(dat_id, site) %>%
+  count()
+
+# sites with negative body-mass
+dat_df %>%
+  filter(body_mass<0) %>%
+  select(dat_id, site) %>%
+  unique()
+
+# remove NA body_weight_units 
+dat_df <- dat_df %>%
+  filter(!is.na(body_weight_units),
+         !is.na(body_mass)) %>%
+  # negative body mass in some Brazilian sites???
+  filter(body_mass>0)
+
+# how many sites?
+dat_df %>%
+  select(dat_id, site) %>%
+  unique()
+# 755 sites
+
+# body_weight_units ####
+# convert everything to mg
 # what are the body weight units?
 dat_df$body_weight_units %>% unique()
 
-# convert everything to mg
+# need to add code to update body_weight_units
 dat_df <- dat_df %>%
   mutate(body_mass = case_when(
     body_weight_units == "g" ~ body_mass *1000,
+    #body_weight_units == "g WW" ~ body_mass *1000,
     body_weight_units == "mg DW" ~ body_mass,
+    #body_weight_units == "mg dry mass" ~ body_mass,
+    #body_weight_units == "mg wet weight" ~ body_mass,
+    body_weight_units == "mg WW" ~ body_mass,
+    body_weight_units == "M.mg" ~ body_mass,
     body_weight_units == "mg" ~ body_mass
   ))
 
+# how many sites?
 dat_df %>%
-  group_by(dat_id, site) %>%
-  count()
-# 386 sites or samples
+  select(dat_id, site) %>%
+  unique()
+# 756 sites
 
+# dat_df %>%
+#   group_by(dat_id, site) %>%
+#   summarise(n = n(), # need to sum ind_n?
+#             max_size = log10(max(body_mass)),
+#             min_size = log10(min(body_mass))) %>%
+#   mutate(size_range = (max_size - min_size))
+# # 43 sites with only 1 observation
+# # Lots of other sites with very few obs, maybe the negative body mass data???
 
-
+# data sets/sites with < 100 individuals
 dat_df %>%
-  group_by(dat_id, site) %>%
-  summarise(n = n(),
+  mutate(ind_n = count * multiplier) %>%
+  group_by(site) %>%
+  summarise(n = sum(ind_n)) %>%
+  filter(n < 100) %>%
+  unique() # %>% View
+
+
+filter_vector <- dat_df %>%
+  mutate(ind_n = count * multiplier) %>%
+  group_by(site) %>%
+  summarise(n = sum(ind_n), # need to change this to ind_n > 100
             max_size = log10(max(body_mass)),
             min_size = log10(min(body_mass))) %>%
   mutate(size_range = (max_size - min_size)) %>%
   filter(n > 100,
-         size_range >= 3)
-# 312 with n > 100 and size range > 3 orders of magnitude
+         size_range >= 3) %>%
+  pull(site) %>%
+  unique()
+filter_vector
+# 543 with n > 100 and size range > 3 orders of magnitude
 
 # NEON sites with fish +macros ####
 data_list$df_NEON.xlsx %>%
   select(site) %>%
   unique()
-# 320 samples
+# 330 samples
 
 neon_site_vector <- data_list$df_NEON.xlsx %>%
   filter(organism_group == "fish") %>%
@@ -120,108 +218,108 @@ df_NEON_fish_macro <- data_list$df_NEON.xlsx %>%
   filter(site %in% neon_site_vector) %>%
   mutate(dat_id = "NEON")
 
-# Tests: work out code ####
-# test the count LL vs plb LL vs PLBbin
-# Charming New Zealand ####
-charm_test <- dat_df %>%
-  filter(site == "Burke") %>%
-  select(body_mass, count, multiplier) %>%
-  mutate(ind_n = count * multiplier) 
-
-charm_counts <- calcLike(negLL.fn = negLL.PLB.counts,
-        x = charm_test$body_mass,
-        c = charm_test$ind_n,
-        p = -1.5)
-
-charm_plb <- calcLike(negLL.fn = negLL.PLB,
-         x = charm_test$body_mass,
-         xmin = min(charm_test$body_mass),
-         xmax = max(charm_test$body_mass),
-         n = length(charm_test$body_mass),
-         sumlogx = sum(log(charm_test$body_mass)),
-         p = -1.5)
-
-# bins
-x.binned <- binData(x = charm_test$body_mass,
-                    binWidth = "2k")
-num.bins <- nrow(x.binned$binVals)
-binBreaks <- c(dplyr::pull(x.binned$binVals, binMin),
-               dplyr::pull(x.binned$binVals, binMax)[num.bins])
-
-binCounts <- dplyr::pull(x.binned$binVals, binCount)
-
-charm_bin <- calcLike(negLL.fn = negLL.PLB.binned,
-         p = -1.5,
-         w = binBreaks,
-         d = binCounts,
-         J = length(binCounts),   # = num.bins
-         vecDiff = 1) 
-data.frame(mle_counts = charm_counts$MLE,
-           mle_bin = charm_bin$MLE,
-           mle_plb = charm_plb$MLE)
-
-# tadnoll UK ####
-tad_test <- dat_df %>%
-  filter(site == "Tadnoll Brook") %>%
-  select(body_mass, count, multiplier) %>%
-  mutate(ind_n = count * multiplier) 
-
-ggplot(tad_test,
-       aes(x = body_mass, y = ind_n)) +
-  geom_point() +
-  scale_x_log10() +
-  scale_y_log10()
-ggplot(tad_test,
-       aes(x = body_mass)) +
-  geom_histogram() +
-  scale_x_log10()
-
-tad_test %>%
-  summarize(min(body_mass))
-
-
-tad_test %>% group_by(body_mass) %>%
-  summarize(n())
-
-tad_counts <- calcLike(negLL.fn = negLL.PLB.counts,
-         x = tad_test$body_mass,
-         c = tad_test$ind_n,
-         p = -1.5)
-tad_plb <- calcLike(negLL.fn = negLL.PLB,
-         x = tad_test$body_mass,
-         xmin = min(tad_test$body_mass),
-         xmax = max(tad_test$body_mass),
-         n = length(tad_test$body_mass),
-         sumlogx = sum(log(tad_test$body_mass)),
-         p = -1.5)
-x.binned <- binData(x = tad_test$body_mass,
-                    binWidth = "2k")
-num.bins <- nrow(x.binned$binVals)
-binBreaks <- c(dplyr::pull(x.binned$binVals, binMin),
-               dplyr::pull(x.binned$binVals, binMax)[num.bins])
-
-binCounts <- dplyr::pull(x.binned$binVals, binCount)
-
-tad_bin <- calcLike(negLL.fn = negLL.PLB.binned,
-                      p = -1.5,
-                      w = binBreaks,
-                      d = binCounts,
-                      J = length(binCounts),   # = num.bins
-                      vecDiff = 1)
-
-data.frame(
-  site = c("Charming_NZ", "Tadnoll_UK"),
-  mle_counts = c(charm_counts$MLE, tad_counts$MLE),
-           mle_bin = c(charm_bin$MLE, tad_bin$MLE),
-           mle_plb = c(charm_plb$MLE, tad_plb$MLE))
-
-
+# # Tests: work out code ####
+# # test the count LL vs plb LL vs PLBbin
+# # Charming New Zealand ####
+# charm_test <- dat_df %>%
+#   filter(site == "Burke") %>%
+#   select(body_mass, count, multiplier) %>%
+#   mutate(ind_n = count * multiplier) 
+# 
+# charm_counts <- calcLike(negLL.fn = negLL.PLB.counts,
+#         x = charm_test$body_mass,
+#         c = charm_test$ind_n,
+#         p = -1.5)
+# 
+# charm_plb <- calcLike(negLL.fn = negLL.PLB,
+#          x = charm_test$body_mass,
+#          xmin = min(charm_test$body_mass),
+#          xmax = max(charm_test$body_mass),
+#          n = length(charm_test$body_mass),
+#          sumlogx = sum(log(charm_test$body_mass)),
+#          p = -1.5)
+# 
+# # bins
+# x.binned <- binData(x = charm_test$body_mass,
+#                     binWidth = "2k")
+# num.bins <- nrow(x.binned$binVals)
+# binBreaks <- c(dplyr::pull(x.binned$binVals, binMin),
+#                dplyr::pull(x.binned$binVals, binMax)[num.bins])
+# 
+# binCounts <- dplyr::pull(x.binned$binVals, binCount)
+# 
+# charm_bin <- calcLike(negLL.fn = negLL.PLB.binned,
+#          p = -1.5,
+#          w = binBreaks,
+#          d = binCounts,
+#          J = length(binCounts),   # = num.bins
+#          vecDiff = 1) 
+# data.frame(mle_counts = charm_counts$MLE,
+#            mle_bin = charm_bin$MLE,
+#            mle_plb = charm_plb$MLE)
+# 
+# # tadnoll UK ####
+# tad_test <- dat_df %>%
+#   filter(site == "Tadnoll Brook") %>%
+#   select(body_mass, count, multiplier) %>%
+#   mutate(ind_n = count * multiplier) 
+# 
+# ggplot(tad_test,
+#        aes(x = body_mass, y = ind_n)) +
+#   geom_point() +
+#   scale_x_log10() +
+#   scale_y_log10()
+# ggplot(tad_test,
+#        aes(x = body_mass)) +
+#   geom_histogram() +
+#   scale_x_log10()
+# 
+# tad_test %>%
+#   summarize(min(body_mass))
+# 
+# 
+# tad_test %>% group_by(body_mass) %>%
+#   summarize(n())
+# 
+# tad_counts <- calcLike(negLL.fn = negLL.PLB.counts,
+#          x = tad_test$body_mass,
+#          c = tad_test$ind_n,
+#          p = -1.5)
+# tad_plb <- calcLike(negLL.fn = negLL.PLB,
+#          x = tad_test$body_mass,
+#          xmin = min(tad_test$body_mass),
+#          xmax = max(tad_test$body_mass),
+#          n = length(tad_test$body_mass),
+#          sumlogx = sum(log(tad_test$body_mass)),
+#          p = -1.5)
+# x.binned <- binData(x = tad_test$body_mass,
+#                     binWidth = "2k")
+# num.bins <- nrow(x.binned$binVals)
+# binBreaks <- c(dplyr::pull(x.binned$binVals, binMin),
+#                dplyr::pull(x.binned$binVals, binMax)[num.bins])
+# 
+# binCounts <- dplyr::pull(x.binned$binVals, binCount)
+# 
+# tad_bin <- calcLike(negLL.fn = negLL.PLB.binned,
+#                       p = -1.5,
+#                       w = binBreaks,
+#                       d = binCounts,
+#                       J = length(binCounts),   # = num.bins
+#                       vecDiff = 1)
+# 
+# data.frame(
+#   site = c("Charming_NZ", "Tadnoll_UK"),
+#   mle_counts = c(charm_counts$MLE, tad_counts$MLE),
+#            mle_bin = c(charm_bin$MLE, tad_bin$MLE),
+#            mle_plb = c(charm_plb$MLE, tad_plb$MLE))
+# 
+# 
 # counts to full data ####
 
-calcLike(negLL.fn = negLL.PLB.counts,
-         x = charm_test$body_mass,
-         c = charm_test$ind_n,
-         p = -1.5)
+# calcLike(negLL.fn = negLL.PLB.counts,
+#          x = charm_test$body_mass,
+#          c = charm_test$ind_n,
+#          p = -1.5)
 
 # doesn't work... 
 # dat_df %>%
@@ -243,22 +341,203 @@ calcLike(negLL.fn = negLL.PLB.counts,
 # Slow, but gets the job done
 
 dat_df2 <- dat_df |> 
-  #filter(dat_id == "Pomeranz") %>%
+  filter(site %in% filter_vector) %>%
   group_by(dat_id, site) %>%
   mutate(ind_n = count * multiplier) %>%
+  filter(!is.na(ind_n)) %>%
   select(dat_id, site, body_mass, ind_n) %>%
   mutate(group_id = cur_group_id()) 
 
 dat_split <- dat_df2 |>
   split(dat_df2$group_id)
 
+# dat_split <- dat_split[-54]
+# dat_split <- dat_split[-55]
+# dat_split <- dat_split[-68]
+# dat_split <- dat_split[-68]
+# dat_split <- dat_split[-70]
+# dat_split <- dat_split[-70]
+# dat_split <- dat_split[-71]
+# dat_split <- dat_split[-71]
+# dat_split <- dat_split[-71]
+# dat_split <- dat_split[-71]
+# dat_split <- dat_split[-73]
+# dat_split <- dat_split[-73]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-98]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-99]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-101]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-102]
+# dat_split <- dat_split[-105]
+# dat_split <- dat_split[-105]
+# dat_split <- dat_split[-117]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
+# dat_split <- dat_split[-123]
 
- mle_count <- dat_split |>
-   map(\(df) calcLike(
-     negLL.fn = negLL.PLB.counts,
-     x = df$body_mass,
-     c = df$ind_n,
-     p = -1.5))
+mle_count <- dat_split |>
+  map(\(df) calcLike(
+    negLL.fn = negLL.PLB.counts,
+    x = df$body_mass,
+    c = df$ind_n,
+    p = -1.5,
+    vecDiff = 50)) # 7.5 was too small, maybe 50 will work, so far it's taking forever...
+# maybe possibly() is another option
+# https://aosmith.rbind.io/2020/08/31/handling-errors/#using-possibly-to-return-values-instead-of-errors
+# posscalc = possibly(.f = calcLike, otherwise = NULL)
+# map(dat_split, ~posscalc(negLL.fn = negLL.PLB.counts, x = .x$body_mass, c = .x$ind_n, p = -1.5))
 
  mle_count_rows <- list()
  for (i in 1:length(mle_count)){
@@ -277,8 +556,8 @@ dat_split <- dat_df2 |>
  mle_count_results$method <- "count"
  #read in site data for lat long ####
 
- df_Pomeranz <- read_excel("data/df_Pomeranz.xlsx",
-                           sheet = "site_data")
+# df_Pomeranz <- read_excel("data/df_Pomeranz.xlsx",
+#                            sheet = "site_data")
 
 
 site_list <- list()
@@ -291,6 +570,10 @@ for (i in 1:length(file_paths)){
     select(site, geographical_latitude)
   site_list[[i]] <- df_site
 }
+ 
+# # 3, 11, 
+# site_list <- site_list[-3]
+# site_list <- site_list[-10]
 
 lat_df <- bind_rows(site_list) %>%
   unique()
@@ -300,30 +583,34 @@ mle_lat <- left_join(mle_count_results,
           lat_df)
 names(mle_lat)
 
-ggplot(mle_lat,
+saveRDS(mle_lat, paste0("results/mle_lat_count",Sys.Date(), ".RDS"))
+# lambda ~ abs(latitude)
+mle_lat %>%
+  filter(dat_id != "df.template_EKOLUR_AL_VG_Gipuzkoa.xlsx" ) %>%
+  ggplot(
        aes(x = abs(geographical_latitude),
            y = mle_estimate,
            ymin = conf_lo,
            ymax = conf_hi,
            color = dat_id)) +
-  geom_pointrange() +
+  geom_pointrange(size = 0.5) +
   stat_smooth(aes(x = abs(geographical_latitude),
                           y = mle_estimate),
-                  method = "lm",
+                  #method = "lm",
               inherit.aes = FALSE)
        
-
-ggplot(mle_lat,
-       aes(x = (geographical_latitude),
-           y = mle_estimate,
-           ymin = conf_lo,
-           ymax = conf_hi,
-           color = dat_id)) +
-  geom_pointrange() +
-  stat_smooth(aes(x = (geographical_latitude),
-                  y = mle_estimate),
-              method = "lm",
-              inherit.aes = FALSE)
+# lambda ~ latitude
+# ggplot(mle_lat,
+#        aes(x = (geographical_latitude),
+#            y = mle_estimate,
+#            ymin = conf_lo,
+#            ymax = conf_hi,
+#            color = dat_id)) +
+#   geom_pointrange() +
+#   stat_smooth(aes(x = (geographical_latitude),
+#                   y = mle_estimate),
+#               method = "lm",
+#               inherit.aes = FALSE)
 
 ggplot(mle_lat,
        aes(x = mle_estimate)) +
@@ -332,11 +619,11 @@ ggplot(mle_lat,
 mle_lat %>%
   filter(!is.na(mle_estimate)) %>%
   summarize(min = min(mle_estimate),
+            q05 = quantile(mle_estimate, probs = 0.05),
             median = median(mle_estimate),
             mean = mean(mle_estimate),
-            max = max(mle_estimate),
-            q05 = quantile(mle_estimate, probs = 0.05),
-            q95 = quantile(mle_estimate, probs = 0.95))
+            q95 = quantile(mle_estimate, probs = 0.95),
+            max = max(mle_estimate))
             
 
 
@@ -424,11 +711,11 @@ ggplot(fish_macro_results,
 mle_lat %>%
   filter(!is.na(mle_estimate)) %>%
   summarize(min = min(mle_estimate),
+            q05 = quantile(mle_estimate, probs = 0.05),
             median = median(mle_estimate),
             mean = mean(mle_estimate),
-            max = max(mle_estimate),
-            q05 = quantile(mle_estimate, probs = 0.05),
-            q95 = quantile(mle_estimate, probs = 0.95))
+            q95 = quantile(mle_estimate, probs = 0.95),
+            max = max(mle_estimate))
 
 # fish_macro isd plots ####
 names(fish_macro_results)
@@ -443,6 +730,7 @@ isd_dat_to_plot <- left_join(fish_macro_results, fish_macro) %>%
 
 
 make_isd_dat <- function(isd_dat){
+  nsamples = 1000
   xmin = min(isd_dat$xmin)
   xmax = max(isd_dat$xmax)
   
@@ -654,11 +942,11 @@ fish_macro_binned_results %>%
   filter(!is.na(mle_estimate)) %>%
   group_by(method) %>%
   summarize(min = min(mle_estimate),
+            q05 = quantile(mle_estimate, probs = 0.05),
             median = median(mle_estimate),
             mean = mean(mle_estimate),
-            max = max(mle_estimate),
-            q05 = quantile(mle_estimate, probs = 0.05),
-            q95 = quantile(mle_estimate, probs = 0.95))
+            q95 = quantile(mle_estimate, probs = 0.95),
+            max = max(mle_estimate))
 
 fish_macro_binned_results %>%
   mutate(method = "binned") %>%

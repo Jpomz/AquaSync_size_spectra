@@ -1,0 +1,19 @@
+re download size databases 
+get HFP + temp from Ignassi's email
+Make table with
+  UK data
+  MLE estimate
+  Biomass totals (+- variation)
+  HFP index
+  Temperature
+  Send to Perkins
+  
+  
+Send script to Wesner for isd bayes
+  Use new size databases
+  Save fit object for exporting
+  rm plot, get prior, etc. 
+  1 chain 1000 iterations
+  Time?
+    save time as object with start date
+    

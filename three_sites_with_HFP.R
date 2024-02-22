@@ -24,7 +24,7 @@ name_target <- c("site",
                  "count",
                  "multiplier")
 
-file_paths <- file_paths[c(13, 15, 16)]
+file_paths <- file_paths[c(14, 16, 17)]
 
 data_list <- list()
 
@@ -114,8 +114,17 @@ for (i in 1:length(file_paths)){
 }
 
 lat_df <- bind_rows(site_list) %>%
-  unique()
+  unique() %>%
+  mutate(site = case_when(
+    site == "Allt a’ Mharcaidh" ~ "Allt Aom",
+    .default = site
+  ))
 
+mle_count_results <- mle_count_results %>%
+  mutate(site = case_when(
+    site == "Allt a‚ÄôMharcaidh" ~ "Allt Aom",
+    .default = site
+  ))
 # plot count ####
 mle_lat <- left_join(mle_count_results,
                      lat_df)
@@ -134,11 +143,11 @@ env_data <- env_data %>%
     .default = site
   ))
 
-mle_lat <- mle_lat %>%
-  mutate(site = case_when(
-    site == "Allt a‚ÄôMharcaidh" ~ "Allt Aom",
-    .default = site
-  ))
+# mle_lat <- mle_lat %>%
+#   mutate(site = case_when(
+#     site == "Allt a‚ÄôMharcaidh" ~ "Allt Aom",
+#     .default = site
+#   ))
 
 m_site <- mle_lat$site %>% unique
 e_site <- env_data$site %>% unique
