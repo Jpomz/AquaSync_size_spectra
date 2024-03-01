@@ -345,15 +345,14 @@ filter_vector
 
 dat_out <- dat_df |> 
   filter(site %in% filter_vector) %>%
-  group_by(dat_id, site) %>%
+  group_by(group_id) %>%
   mutate(ind_n = count * multiplier) %>%
-  filter(!is.na(ind_n)) %>%
-  mutate(group_id = cur_group_id())
+  filter(!is.na(ind_n)) 
 
-
+dat_out$group_id %>% unique() # 2560 sites
 
 # save data ####
-saveRDS(dat_out, paste0("derived_data/filtered_size_", Sys.Date(), ".RDS"))
+saveRDS(dat_out, "derived_data/filtered_size_2024-02-07.RDS")
 
 paste0("derived_data/filtered_size_", Sys.Date(), ".RDS")
 
