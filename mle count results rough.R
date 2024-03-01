@@ -2,7 +2,9 @@
 library(tidyverse)
 library(readxl)
 
-mle_count <- readRDS("results/mle_count_vecDiff-0.5_2024-02-07.rds")
+mle_count <- readRDS("results/mle_count_vecDiff-0.5_2024-03-01.rds")
+
+nrow(mle_count)
 
 mle_count%>%
   summarize(mean = mean(mle_estimate, na.rm = TRUE),
@@ -16,7 +18,7 @@ mle_count %>%
   filter(is.na(mle_estimate)) %>%
   nrow() / nrow(mle_count)
 # when vecDiff = 0.5, ~76% of the data cannot get a mle estimate
-## only 633 estimates
+## only 615 estimates
 # when vecdiff is 5 or 10, have a much higher coverage of estimates, but CI's are huge
 
 file_paths <- list.files("data/", 

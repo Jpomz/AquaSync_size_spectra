@@ -1,18 +1,21 @@
 # script 03a
 # using mleCount method for subset of data
 
-devtools::install_github("andrew-edwards/sizeSpectra",
-                         upgrade = FALSE)
+#devtools::install_github("andrew-edwards/sizeSpectra",
+#                         upgrade = FALSE)
+
 library(tidyverse)
 library(furrr)
 library(sizeSpectra)
 
-dat <- readRDS("derived_data/filtered_size_jan-11.RDS")%>%
-  group_by(dat_id, site) %>%
+dat <- readRDS("derived_data/filtered_size_2024-02-07.RDS")%>%
+  group_by(group_id) %>%
   mutate(xmin = min(body_mass),
-         xmax = max(body_mass),
-         group_id = cur_group_id())
+         xmax = max(body_mass))
 
+dat$group_id %>% unique()
+
+# old ####
 # filtered_vector <- c(
 #   "df_NEON.xlsx",
 #   "size_spectra_bio_BA.xlsx",
@@ -66,9 +69,9 @@ dat <- readRDS("derived_data/filtered_size_jan-11.RDS")%>%
 
 
 
-# full datset
+# full datset ####
 dat_split <- dat %>%
-  split(dat$group_id)
+  group_split()
 
 nrow_dat_split <- dat_split %>%
   map_dbl(\(dat) nrow(dat)) 
@@ -96,12 +99,12 @@ plan(cluster, workers = 1)
 mle_count_rows <- list()
 for (i in 1:length(mle_count)){
   if(mle_count[[i]][[1]] == "Error"){
-    out <- data.frame(group_id = names(mle_count[i]),
+    out <- data.frame(group_id = dat_split[[i]]$group_id[1],
                       mle_estimate = NA,
                       conf_lo = NA,
                       conf_hi = NA)
   } else{
-  out <- data.frame(group_id = names(mle_count[i]),
+  out <- data.frame(group_id = dat_split[[i]]$group_id[1],
                     mle_estimate = mle_count[[i]]$MLE,
                     conf_lo = mle_count[[i]]$conf[1],
                     conf_hi = mle_count[[i]]$conf[2])
@@ -109,6 +112,7 @@ for (i in 1:length(mle_count)){
   mle_count_rows[[i]] <- out
 }
 
+length(mle_count_rows)
 
 mle_count_results <- bind_rows(mle_count_rows) %>%
   mutate(group_id = as.numeric(group_id)) %>%
@@ -127,9 +131,17 @@ mle_count_results %>%
 mle_count_results %>%
   filter(is.na(mle_estimate)) %>%
   nrow()
-# 134/2659
-#~5% data with no mle estimate
+# vecdiff = 0.5 --> 1945/2560
+# ~76% data with no mle estimate
 
+# add latitude
+# not tested yet ####
+mle_count_results <- left_join(
+  mle_count_results,
+  dat %>%
+    select(group_id, geographical_latitude) %>%
+    unique()
+  )
 
 saveRDS(mle_run, paste0("results/mle_run_", Sys.Date(), ".rds"))
 saveRDS(mle_count_results, paste0("results/mle_count_vecDiff-", vecDiff, "_", Sys.Date(),".rds"))
