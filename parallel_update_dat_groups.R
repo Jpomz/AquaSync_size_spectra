@@ -7,6 +7,8 @@ library(isdbayes)
 library(foreach)
 
 update_iter = 2000
+workers1 = (parallel::detectCores() - 1)
+workers2 = 4
 
 # full data ####
 dat <- readRDS("derived_data/filtered_size_2024-02-07.RDS")
@@ -87,6 +89,7 @@ rm(group4_ids)
 
 
 # plan ####
+
 plan(multisession, workers = 5) # full data, 1c 10 i = 9.318 minutes
 
 # plan(list(
@@ -114,7 +117,6 @@ brm0 = brm_multiple(
   family = paretocounts(),
   chains = chains, # add cores argument?
   iter = iter,
-  cores = 4,
   future = TRUE,
   combine = FALSE)
 run0_end <- Sys.time()
@@ -125,52 +127,12 @@ rm(run0)
 rm(run0_end)
 rm(run0_start)
 
-# don't need to save these?
-# saveRDS(run0, paste0("results/time_brm0_", Sys.Date(), ".rds"))
-# saveRDS(brm0,
-#         paste0("results/brm0", Sys.Date(), ".rds"))
-# saveRDS(group0_ids,
-#         paste0("results/group_ids_brm0_", Sys.Date(), ".rds"))
-
-# # group 0.1 update ####
-# plan(list(
-#   tweak(multisession, workers = 3),# el gordo = 15
-#   tweak(multisession, workers = 4)# el gordo = 4
-# ))
-# 
-# run0.1_start <- Sys.time()
-# 
-# brm0.1 <- foreach(i = 1:length(list0.1)) %dopar%
-#   update(object = brm0[[1]],
-#          newdata = list0.1[[i]],
-#          iter = 20)
-# 
-# run0.1_end <- Sys.time()
-# (run0.1 <- run0.1_end - run0.1_start)
 
 # Group 1 ####
-
-# list 1 = 531 elements
-# iter = 200 = 424,800 iter = %dopar% = 16 minutes
-
-
-
-# run1_start <- Sys.time()
-# 
-# brm1 <- foreach(i = 1:length(list1)) %dopar%
-#   update(object = brm0[[1]],
-#          newdata = list1[[i]],
-#          iter = update_iter)
-# run1_end <- Sys.time()
-# (run1 <- run1_end - run1_start)
-
-# 1.b ####
 plan(list(
-  tweak(multisession, workers = 3),
-  tweak(multisession, workers = 4)
+  tweak(multisession, workers = workers1),
+  tweak(multisession, workers = workers2)
 ))
-# list 1 = 531 elements
-# iter = 200 = nested plan = %dopar% = 9 minutes
 
 run1_start <- Sys.time()
 
@@ -183,45 +145,13 @@ brm1 <- foreach(
 run1_end <- Sys.time()
 (run1 <- run1_end - run1_start)
 
-# 1.c ####
-# plan(list(
-#   tweak(multisession, workers = 3),
-#   tweak(multisession, workers = 4)
-# ))
-# list 1 = 531 elements
-# iter = 200 = nested plan = %dopar% = update(cores = 4) time = at least 21 minutes
-
-# run1.c_start <- Sys.time()
-# brm1.c <- foreach(i = 1:length(list1)) %dopar%
-#   update(object = brm0[[1]],
-#          newdata = list1[[i]],
-#          iter = update_iter,
-#          cores = 4)
-# run1.c_end <- Sys.time()
-# (run1.c <- run1.c_end - run1.c_start)
-
-# # 1.d ####
-# plan(multisession, workers = 3)
-# 
-# # list 1 = 531 elements
-# # iter = 200 = nested plan = %dopar% = update(cores = 4) 
-# 
-# run1.d_start <- Sys.time()
-# brm1.d <- foreach(i = 1:length(list1)) %dopar%
-#   update(object = brm0[[1]],
-#          newdata = list1[[i]],
-#          iter = update_iter,
-#          cores = 4)
-# run1.d_end <- Sys.time()
-# (run1.d <- run1.d_end - run1.d_start)
-
 # save run1 ####
 saveRDS(run1, paste0("results/time_brm1_", Sys.Date(), ".rds"))
 saveRDS(brm1,
         paste0("results/brm1_", Sys.Date(), ".rds"))
 
 rm(run1)
-#rm(brm1)
+rm(brm1)
 rm(run1_end)
 rm(run1_start)
 rm(list1)
@@ -230,8 +160,8 @@ rm(list1)
 # list 2 = 778 elements ~1.5 times as big, timing?
 # set nested plan to run 3 datasets at a time, parallel process 4 chains simultaneoulsy
 plan(list(
-  tweak(multisession, workers = 3),
-  tweak(multisession, workers = 4)
+  tweak(multisession, workers = workers1),
+  tweak(multisession, workers = workers2)
 ))
 # with nested plan above = 
 # is it ~1.5 times as long as run 1?
@@ -251,15 +181,15 @@ saveRDS(brm2,
         paste0("results/brm2_", Sys.Date(), ".rds"))
 
 rm(run2)
-#rm(brm2)
+rm(brm2)
 rm(run2_end)
 rm(run2_start)
 rm(list2)
 
 # group 3 #####
 plan(list(
-  tweak(multisession, workers = 3),
-  tweak(multisession, workers = 4)
+  tweak(multisession, workers = workers1),
+  tweak(multisession, workers = workers2)
 ))
 
 run3_start <- Sys.time()
@@ -277,15 +207,15 @@ saveRDS(brm3,
         paste0("results/brm3_", Sys.Date(), ".rds"))
 
 rm(run3)
-#rm(brm3)
+rm(brm3)
 rm(run3_end)
 rm(run3_start)
 rm(list3)
 
 # group 4 #####
 plan(list(
-  tweak(multisession, workers = 3),
-  tweak(multisession, workers = 4)
+  tweak(multisession, workers = workers1),
+  tweak(multisession, workers = workers2)
 ))
 
 run4_start <- Sys.time()
