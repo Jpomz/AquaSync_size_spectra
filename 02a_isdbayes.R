@@ -71,8 +71,52 @@ bprior <- c(prior(normal(-1.3,0.4), class = Intercept),
 iter = 1#100
 chain_core = 8
 fit1_start <- Sys.time()
-fit_full_8c_100i <- brm(body_mass | vreal(ind_n, xmin, xmax) ~
-                          (1|site), 
+
+# wtf is body mass?
+# sum up the grouped body size, not tally/count
+
+# group_split()
+# brm_multiple
+# isd_data_list = isd_data %>% group_by(sample_id) %>% group_split()
+# 
+# dummy_mod = brm_multiple(x|asdasdf ~ 1,
+#                    data = isd_data_list)
+# for{update()}
+
+# #
+# sim_data_list = sim_data %>% group_by(group) %>% group_split()
+# 
+# dummy_mod = brm(x | vreal(counts, xmin, xmax) ~ 1,
+#                 data = sim_data_list[[1]],
+#                 stanvars = stanvars,
+#                 family = paretocounts(),
+#                 chains = 1, iter = 20,
+#                 cores = 4)
+# 
+# 
+# update_fits = NULL
+# 
+# for(i in length(sim_data_list)){
+#   update_fits[[i]] = update(dummy_mod, newdata = sim_data_list, iter = 2000, chains = 4, cores = 4)
+# }
+# 
+
+
+# sim_data_list = sim_data %>% group_by(group) %>% group_split()
+# 
+# # fit and save separate intercept only models to each lambda
+# brm_single_mods = brm_multiple(x | vreal(counts, xmin, xmax) ~ 1,
+#                                data = sim_data_list,
+#                                stanvars = stanvars,
+#                                family = paretocounts(),
+#                                chains = 4, iter = 2000,
+#                                cores = 4,
+#                                combine = F)
+
+
+
+fit_full_8c_100i <- brm(body_mass | vreal(ind_n, xmin, xmax) ~ group_id + (1|dat_id), # just group_id as fixed or include as random?
+                          #(1|site), 
                         data = test_dat,
                         stanvars = stanvars,
                         prior = bprior,
