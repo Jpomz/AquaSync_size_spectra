@@ -1,9 +1,9 @@
 # script for cmdstan r
 # we recommend running this is a fresh R session or restarting your current session
-install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-
-cmdstanr::check_cmdstan_toolchain(fix = TRUE)
-cmdstanr::install_cmdstan()
+# install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+# 
+# cmdstanr::check_cmdstan_toolchain(fix = TRUE)
+# cmdstanr::install_cmdstan()
 
 library(tidyverse)
 library(brms)
@@ -18,13 +18,13 @@ dat <- dat %>%
   mutate(xmin = min(body_mass),
          xmax = max(body_mass))
 
-plan(tweak(multisession, workers = 16))
+plan(tweak(multisession, workers = 3))
 
 bprior <- c(prior(normal(-1.3,0.4), class = Intercept))
 
 model <- make_stancode(
   body_mass | vreal(ind_n, xmin, xmax) ~ 1,  
-  data = neon %>%
+  data = dat %>%
     filter(group_id == 2290) %>%
     select(body_mass, ind_n, xmin, xmax),
   stanvars = stanvars,
@@ -62,7 +62,7 @@ isd_models <- dat %>%
         ),
         ~ model$sample(
           data = .x,
-          iter_sampling = 1000,
+          iter_sampling = 500,
           iter_warmup = 500,
           chains = 4, 
           parallel_chains = 4

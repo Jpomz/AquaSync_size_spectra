@@ -1,7 +1,7 @@
 # list of lists for brm_multiple
 # libraries ####
 
-devtools::install_github("jswesner/isdbayes", upgrade = FALSE)
+#devtools::install_github("jswesner/isdbayes", upgrade = FALSE)
 
 library(tidyverse)
 library(brms)
