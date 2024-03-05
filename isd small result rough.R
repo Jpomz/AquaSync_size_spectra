@@ -1,14 +1,40 @@
 library(tidybayes)
 library(tidyverse)
+library(brms)
 
-isd <- readRDS("results/fit3_4c_2000i_2024-02-07.rds")
+# which data is this?
+isd <- readRDS("results/fit_full_8c500i_2024-02-14.rds")
 
 # check model
 plot(isd)
-pp_check(isd)
+
+# pp_check as a "GOF" ?
+# geometric mean? 
+# bayesian p value, rank plot, farter away means worse
+# predictions are all based on power law
+# measure deviation from that prediction/model 
+
+# neon_slim
+# code 3 3.1 pvalues
+
+# fitting speed, resampling whole data set
+# 
+isd_new = isd$data %>% # list of sites
+  sample_n(size = 100000, replace = T, weight = ind_n)
+
+pp_check(isd, newdata = isd_new) +
+  scale_x_log10()
+
+
+pp_check(isd, type = "boxplot",  newdata = isd_new) +
+  scale_y_log10()
+# faster?, all 1.7 million points
 # # from isdbayes vignette
 # pp_check(fit2, type = "dens_overlay_grouped", group = "group") +
 #   scale_x_log10()
+
+# isd$data repeats
+# "bin" count the data? tally up the data
 
 posts_varint = isd$data %>% 
   distinct(site, xmin, xmax) %>% 
