@@ -1,7 +1,7 @@
 # brms multiple and future
 # script for parallelizing 
 
-devtools::install_github("jswesner/isdbayes", upgrade = FALSE)
+#devtools::install_github("jswesner/isdbayes", upgrade = FALSE)
 
 library(tidyverse)
 library(brms)
@@ -17,23 +17,25 @@ dat <- dat %>%
   mutate(xmin = min(body_mass),
          xmax = max(body_mass))
 
-workers = availableCores() - 1
+#workers = availableCores() - 1
 
 
-plan(tweak(multisession, workers = workers))
+plan(multisession)
 
 bprior <- c(prior(normal(-1.3,0.4), class = Intercept))
 
 dat_list <- dat %>%
   group_split()
 
-group_ids <- lapply(dat_list, function(x) x[1,"group_id"]) %>%
+group_ids <- lapply(
+  dat_list,
+  function(x) x[1,"group_id"]) %>%
   map_chr(as.character)
 
 tictoc::tic()
 brm_single_mods = brm_multiple(
   body_mass | vreal(ind_n, xmin, xmax) ~ 1,
-  data = neon_list,
+  data = dat_list,
   stanvars = stanvars,
   family = paretocounts(),
   chains = 4, 
@@ -42,8 +44,8 @@ brm_single_mods = brm_multiple(
   combine = FALSE)
 run_time <- tictoc::toc()$callback_msg
 
-saveRDS(run_time, "results/time_brm_multiple_2024-Feb.rds")
+saveRDS(run_time, paste0("results/time_brm_multiple_", Sys.Date(), ".rds"))
 saveRDS(brm_single_mods,
-        "results/brm_multiple_2024-Feb.rds")
+        paste0("results/brm_multiple_", Sys.Date(), ".rds"))
 saveRDS(group_ids,
-        "results/brm_mult_group_ids.rds")
+        paste0("results/group_ids_brm_multiple_", Sys.Date(), ".rds"))
