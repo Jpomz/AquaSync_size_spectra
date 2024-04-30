@@ -5,18 +5,20 @@ library(tidyverse)
 library(sizeSpectra)
 library(readxl)
 
-### df_borneo complete:
+### df_borneo complete: ####
 # JPZ manually changed local copy of data
 # sampling_year --> year
 # sampling_month --> month
 # mei_taille_units --> body_length_units
 
-### df_france_irzetal_part1 and part2
+
+### df_france_irzetal_part1 and part2 ####
+## fixed? ####
 # site_france sheet renamed site_data
 # need to email crew to update file on teams site
 
 
-### df template lento-morin
+### df template lento-morin ####
 # site_data does not have information for site "07"
 
 
@@ -182,6 +184,7 @@ dat_df <- dat_df %>%
     organism_groups = case_when(
       organism_groups == "fish" ~ "Fish",
       organism_groups == "Invertebrates, Fish" ~ "Invertebrates + Fish",
+      organism_groups == "Invertebrates + fish" ~ "Invertebrates + Fish",
       .default = organism_groups),
     organism_group = case_when(
       organism_group == "fish" ~ "Fish",
@@ -236,3 +239,4 @@ dat_out %>%
   distinct(organism_groups)
 
 saveRDS(dat_out, "derived_data/formatted_files_stitched_filtered_April-2024.RDS")
+

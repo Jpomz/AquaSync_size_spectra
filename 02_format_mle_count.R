@@ -88,13 +88,17 @@ mle_count_results %>%
 
 
 mle_lat <- mle_count_results
-saveRDS(mle_lat, "derived_data/format_mle_count_results.RDS")
 
 mle_lat <- mle_lat %>% 
   na.omit() %>%
   mutate(se = (conf_hi - conf_lo) / 2 * 1.96,
          var = se**2) %>%
-  filter(var > 0) # %>%
+  filter(var > 0)
+
+
+saveRDS(mle_lat, "derived_data/format_mle_count_results.RDS")
+
+ # %>%
   # mutate(organism_groups = case_when(
   #   organism_groups == "fish" ~ "Fish",
   #   organism_groups == "Invertebrates, Fish" ~ "Invertebrates + Fish",
@@ -222,4 +226,6 @@ ggplot(mle_lat,
   geom_pointrange(alpha = 0.5) +
   labs(title = "MLE_count all estimates") +
   theme_bw() +
-  facet_wrap(~organism_groups, scales = "free_x")
+  facet_wrap(~organism_groups, scales = "free_x") +
+  stat_smooth(method = "lm") +
+  NULL
