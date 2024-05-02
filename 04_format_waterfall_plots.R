@@ -3,6 +3,16 @@
 library(tidyverse)
 
 dat <- readRDS("derived_data/formatted_files_stitched_filtered_April-2024.RDS")
+
+dat %>%
+  ggplot(aes(x = count,
+         fill = organism_group)) +
+  geom_density() +
+  scale_x_log10()
+
+dat %>% filter(count !=1) %>%
+  distinct(dat_id)
+
 mle <- readRDS("derived_data/format_mle_count_results.RDS")
 
 # dat %>% 
@@ -15,7 +25,7 @@ dat %>%
   filter(!is.na(ind_n),
          organism_groups == "Invertebrates + Fish") %>%
   group_by(group_id) %>%
-  sample_n(size = 10000,
+  sample_n(size = 1000,
            weight = ind_n,
            replace = TRUE) %>%
   select(group_id, body_mass, geographical_latitude,
@@ -25,19 +35,26 @@ dat %>%
   ggplot(aes(x = body_mass,
              y = order,
              size = body_mass,
-             color = geographical_latitude)) +
-  geom_point(shape = 1, alpha = 0.5) +
-  theme_bw() +
+             color = abs(geographical_latitude))) +
+  scale_colour_distiller(palette = "RdBu") +
+  geom_point(shape = 19, alpha = 0.5) +
+  #theme_dark() +
+  #theme_bw() +
   scale_x_log10() +
   scale_y_log10() +
   labs(y = "Number of values \u2265 x",
        x = "Individual body mass",
        title = "Invertebrates + Fish",
-       color = "Latitude") +
+       color = "Absolute Latitude") +
   guides(size = "none") +
   NULL
 
-ggsave("results/plots/waterfall01.jpg",
+# 01 = default colors
+# 02 = RdYlBu
+# 03 = RdBu
+# 04 = RdBu with theme_dark()
+# 05 = RdBu with default theme (gray background)
+ggsave("results/plots/waterfall05.jpg",
        width = 6.5, height = 8.5,
        dpi = 500)
 

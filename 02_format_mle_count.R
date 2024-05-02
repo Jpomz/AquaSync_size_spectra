@@ -98,6 +98,7 @@ mle_lat <- mle_lat %>%
 
 saveRDS(mle_lat, "derived_data/format_mle_count_results.RDS")
 
+mle_lat <- readRDS("derived_data/format_mle_count_results.RDS")
  # %>%
   # mutate(organism_groups = case_when(
   #   organism_groups == "fish" ~ "Fish",
@@ -118,8 +119,15 @@ ggplot(mle_lat,
          ymax = conf_hi,
          color = organism_groups)) +
   geom_pointrange(alpha = 0.25) +
-  labs(title = "MLE_count all estimates") +
+  labs(title = "MLE_count estimates",
+       x = "Absolute Latitude",
+       y = "Estimated \u03BB") +
+  guides(color = guide_legend(title = "Taxa")) +
   theme_bw()
+
+ggsave("results/plots/mle_count_lambda_latitude.jpg",
+       width = 6.5, height = 8.5,
+       dpi = 500)
 
 # add ols regression
 ggplot(mle_lat,
