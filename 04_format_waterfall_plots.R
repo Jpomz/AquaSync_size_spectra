@@ -34,12 +34,13 @@ dat %>%
   mutate(order = row_number()) %>%
   ggplot(aes(x = body_mass,
              y = order,
-             size = body_mass,
+             #size = body_mass,
              color = abs(geographical_latitude))) +
-  scale_colour_distiller(palette = "RdBu") +
-  geom_point(shape = 19, alpha = 0.5) +
+  scale_colour_distiller(palette = "RdBu",
+                         direction = 1) +
+  geom_point(shape = 1, alpha = 0.5) +
   #theme_dark() +
-  #theme_bw() +
+  theme_bw() +
   scale_x_log10() +
   scale_y_log10() +
   labs(y = "Number of values \u2265 x",
@@ -54,10 +55,79 @@ dat %>%
 # 03 = RdBu
 # 04 = RdBu with theme_dark()
 # 05 = RdBu with default theme (gray background)
-ggsave("results/plots/waterfall05.jpg",
+ggsave("results/plots/waterfall_invert_fish.jpg",
        width = 6.5, height = 8.5,
        dpi = 500)
 
+# invertebrates
+dat %>% 
+  filter(!is.na(ind_n),
+         organism_groups == "Invertebrates") %>%
+  group_by(group_id) %>%
+  sample_n(size = 1000,
+           weight = ind_n,
+           replace = TRUE) %>%
+  select(group_id, body_mass, geographical_latitude,
+         organism_group, ind_n) %>%
+  arrange(group_id, -body_mass) %>%
+  mutate(order = row_number()) %>%
+  ggplot(aes(x = body_mass,
+             y = order,
+             #size = body_mass,
+             color = abs(geographical_latitude))) +
+  scale_colour_distiller(palette = "RdBu",
+                         direction = 1) +
+  geom_point(shape = 1, alpha = 0.5) +
+  #theme_dark() +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(y = "Number of values \u2265 x",
+       x = "Individual body mass",
+       title = "Invertebrates",
+       color = "Absolute Latitude") +
+  guides(size = "none") +
+  NULL
+
+ggsave("results/plots/waterfall_invert.jpg",
+       width = 6.5, height = 8.5,
+       dpi = 500)
+
+
+
+# fish
+dat %>% 
+  filter(!is.na(ind_n),
+         organism_groups == "Fish") %>%
+  group_by(group_id) %>%
+  sample_n(size = 1000,
+           weight = ind_n,
+           replace = TRUE) %>%
+  select(group_id, body_mass, geographical_latitude,
+         organism_group, ind_n) %>%
+  arrange(group_id, -body_mass) %>%
+  mutate(order = row_number()) %>%
+  ggplot(aes(x = body_mass,
+             y = order,
+             #size = body_mass,
+             color = abs(geographical_latitude))) +
+  scale_colour_distiller(palette = "RdBu",
+                         direction = 1) +
+  geom_point(shape = 1, alpha = 0.5) +
+  #theme_dark() +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(y = "Number of values \u2265 x",
+       x = "Individual body mass",
+       title = "Fish",
+       color = "Absolute Latitude") +
+  guides(size = "none") +
+  NULL
+
+ggsave("results/plots/waterfall_fish.jpg",
+       width = 6.5, height = 8.5,
+       dpi = 500)  
 
 # # invertebrates
 # dat %>% 

@@ -207,10 +207,12 @@ dat_df <- dat_df %>%
 # for fish only it is # / km^2
 # when macroinvertebrates are present it is # /m^2
 
+# ind_n per organism group? ####
 dat_df <- dat_df %>%
-  group_by(group_id) %>%
+  group_by(group_id) %>% # need to add organism group here???
   mutate(ind_n = (count * multiplier) / n_distinct(sample))
 
+# filter site_date with number and range ####
 filter_vector <- dat_df %>%
   group_by(group_id, site_date) %>%
   summarise(n = n(), 
