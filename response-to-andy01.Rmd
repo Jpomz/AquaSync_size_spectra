@@ -1,0 +1,331 @@
+---
+title: "response to andy 01"
+author: "Justin Pomeranz"
+date: "2024-05-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load libraries and their package versions
+```{r}
+
+library(tidyverse)
+library(sizeSpectra)
+
+print("tidyverse version")
+packageVersion("tidyverse")
+print("sizeSpectra version")
+packageVersion("sizeSpectra")
+
+# R version
+R.version
+```
+
+
+Load example data for Andy
+
+```{r}
+raw_orig <- read_csv("derived_data/example_for_andrew.csv")
+```
+
+Starting out with one dataset to match Andy's initial analyses. 
+```{r}
+raw_simp_1 <- raw_orig %>%
+  filter(group_id == 3572) %>%
+  select(group_id, body_mass, ind_n)
+raw_simp_1
+```
+
+Here is my version of the mlecounts. I used slightly different syntax but we get exactly the same result. 
+
+```{r}
+mle_count_res <- calcLike(
+      negLL.fn = negLL.PLB.counts,
+      x = raw_simp_1$body_mass,
+      c = raw_simp_1$ind_n,
+      p = -1.5,
+      vecDiff = 0.5)
+mle_count_res
+```
+
+Comparing with "normal" mle
+```{r}
+range(raw_simp_1$ind_n)
+```
+
+Since the "counts" (or in this case, `ind_n`) are all the same, we can run a regular mle to compare the results. 
+
+```{r}
+mle_res <- calcLike(
+      negLL.fn = negLL.PLB,
+      x = raw_simp_1$body_mass,
+      xmin = min(raw_simp_1$body_mass),
+      xmax = max(raw_simp_1$body_mass),
+      n = length(raw_simp_1$body_mass),
+      sumlogx = sum(log(raw_simp_1$body_mass)),
+      p = -1.5,
+      vecDiff = 0.5)
+mle_res
+```
+
+The estimate is the same, but the CI is a decent bit narrower. 
+
+Another option is to multiply the number of rows based on the number in `ind_n`. The `uncount()` function cannot take non-integers, but we can multiply the ind_n column by 10 to make 1.3004 = 13.004 and then round. This might not be the best option overall, but just for comparison's sake. 
+
+Also, for what it's worth, we did a similar thing in Pomeranz et al. 2022 using the NEON data. This was before I knew about MLEcounts and so we duplicated the number of rows based on the estimated abundance and used the "standard" MLE method. 
+
+```{r}
+# expand the data into a long format
+simp_long <- raw_simp_1 %>% 
+  mutate(count_integer = round(ind_n*10)) %>%
+  uncount(count_integer)
+# head of new data
+head(simp_long)
+# dim of original and long data
+dim(raw_simp_1)
+dim(simp_long)
+# do the number of rows make sense?
+# original had 109 rows, each has a new count of 13 so:
+109 * 13
+# same as long data
+```
+
+mle estimate of long data
+```{r}
+mle_long_res <- calcLike(
+      negLL.fn = negLL.PLB,
+      x = raw_simp_1$body_mass,
+      xmin = min(simp_long$body_mass),
+      xmax = max(simp_long$body_mass),
+      n = length(simp_long$body_mass),
+      sumlogx = sum(log(simp_long$body_mass)),
+      p = -1.5,
+      vecDiff = 0.5)
+mle_long_res
+```
+
+compare results
+```{r}
+res_df <- data.frame(method = c("count = 1.3",
+                      "mle_long",
+                      "mle"),
+           estimate = c(mle_count_res$MLE,
+                        mle_long_res$MLE,
+                        mle_res$MLE),
+           conf_lo = c(mle_count_res$conf[1],
+                        mle_long_res$conf[1],
+                        mle_res$conf[1]),
+           conf_hi = c(mle_count_res$conf[2],
+                        mle_long_res$conf[2],
+                        mle_res$conf[2])) %>%
+  mutate(ci_width = conf_hi - conf_lo)
+res_df
+```
+
+All three methods give the same estimate but there is variation in the CI's. the "long" data has the narrowest CIs almost certainly becasue of the increased sample size (i.e., 1417 vs. 109). 
+
+
+# MLEbin  
+
+Andy, please see below and let me know if I'm doing something wrong or misunderstanding 
+
+This is based off of the [MLEbins recommend](https://htmlpreview.github.io/?https://raw.githubusercontent.com/andrew-edwards/sizeSpectra/master/doc/MLEbin_recommend.html) file in the SizeSpectra github page. 
+
+### binData()
+
+First modify the data to put into `binData()` function, then try with non-integer `counts` column
+```{r}
+raw_for_bin <- raw_simp_1 %>%
+  rename(counts = ind_n) %>%
+  select(body_mass, counts)
+binData(
+        counts = raw_for_bin,
+        binWidth = "2K")
+```
+
+Jagen H'ghar is right, there is no function for non-integer counts. 
+
+### Using a weighted histogram function  
+
+I found a function which will calculate histograms using non-integer counts/weights. I'm not sure if this is doing exactly the same thing as `binData()` but I did my best to match outputs based on `binData()` function. 
+
+```{r}
+library(weights)
+packageVersion("weights")
+# watchout for dplyr::summarize() being masked by `weights` package. 
+```
+
+Use weights to bin the data in log2 bins
+
+```{r}
+x = raw_simp_1$body_mass
+ind_n =  raw_simp_1$ind_n
+minx <- min(x) 
+maxx <- max(x) 
+  
+  # weighted histogram
+wtd_result <- wtd.hist(
+    x = x,
+    breaks = 2^(floor(log2(minx)):ceiling(log2(maxx))),
+    weight = ind_n, 
+    plot = FALSE)
+  
+  wtd_out <- bind_cols(wtd_result[c(2,5)])
+  wtd_out <- wtd_out %>%
+    mutate(log_counts = log(counts),
+           log_mids = log(mids))
+  
+  # estimate lambda
+  
+mle_binned_res <- calcLike(
+    negLL.fn = negLL.PLB.binned,
+    p = -1.5,
+    w = wtd_result$breaks,
+    d = wtd_result$counts,
+    J = length(wtd_result$counts),   # = num.bins
+    vecDiff = 0.5)
+mle_binned_res
+```
+
+estimate is quite a bit different from the other methods. 
+
+```{r}
+data.frame(method = c("count = 1.3",
+                      "mle_long",
+                      "mle",
+                      "binned"),
+           estimate = c(mle_count_res$MLE,
+                        mle_long_res$MLE,
+                        mle_res$MLE,
+                        mle_binned_res$MLE),
+           conf_lo = c(mle_count_res$conf[1],
+                        mle_long_res$conf[1],
+                        mle_res$conf[1],
+                        mle_binned_res$conf[1]),
+           conf_hi = c(mle_count_res$conf[2],
+                        mle_long_res$conf[2],
+                        mle_res$conf[2],
+                        mle_binned_res$conf[2])) %>%
+  mutate(ci_width = conf_hi - conf_lo)
+
+```
+
+binned estimate is higher (shallower) than others but CI width is slightly narrower except for the "long" data which is likely narrow due to increased sample size. 
+
+
+# Plotting option  
+
+Here, I will use the `mle_count_res` as an example. 
+
+```{r}
+resampled_df <- raw_simp_1 %>%
+  sample_n(size = 1000,
+           weight = ind_n,
+           replace = TRUE) %>%
+  arrange(-body_mass) %>%
+  mutate(order = row_number() / 1000) 
+
+resampled_df %>%
+  ggplot(aes(x = body_mass,
+             y = order)) +
+  geom_point(shape = 1) +
+  #theme_dark() +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(y = "Number of values \u2265 x",
+       x = "Individual body mass") +
+  guides(size = "none") +
+  NULL
+
+```
+
+```{r}
+xmin = min(raw_simp_1$body_mass)
+xmax = max(raw_simp_1$body_mass)
+fit_df <- data.frame(
+  dw = seq(xmin,
+           xmax),
+  lambda = mle_count_res$MLE,
+  .lower = mle_count_res$conf[1],
+  .upper = mle_count_res$conf[2]) %>%
+  mutate(
+  y.PLB = (1 - (dw^(lambda + 1) - (xmin^(lambda+1)))/(xmax^(lambda + 1) - 
+                            (xmin^(lambda+1)))),
+  y.PLBlower = (1 - (dw^(.lower + 1) -(xmin^(.lower+1)))/(xmax^(.lower + 1) -(xmin^(.lower+1)))),
+         y.PLBupper = (1 - (dw^(.upper + 1) - (xmin^(.upper+1)))/(xmax^(.upper + 1) - (xmin^(.upper+1)))))
+
+ggplot(fit_df,
+       aes(x = dw,
+           y = y.PLB,
+           ymin = y.PLBlower,
+           ymax = y.PLBupper)) +
+  geom_line() +
+  geom_ribbon(color = "grey50", alpha = 0.5) +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+
+```{r message=FALSE, warning=FALSE}
+resampled_df_dw <- resampled_df %>%
+  rename(dw = body_mass)
+
+full_join(fit_df, resampled_df_dw) %>%
+  ggplot(aes(x = dw,
+             y = order)) +
+  geom_point(shape = 1, color = "red") +
+  #theme_dark() +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(y = "Number of values \u2265 x",
+       x = "Individual body mass") +
+  guides(size = "none") +
+  geom_line(aes(x = dw,
+           y = y.PLB)) +
+  geom_ribbon(aes(
+           ymin = y.PLBlower,
+           ymax = y.PLBupper),
+    color = "grey50", alpha = 0.5)
+  NULL
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+raw_simp_1 %>%
+  sample_n(size = 1000,
+           weight = ind_n,
+           replace = TRUE) %>%
+  arrange(-body_mass) %>%
+  mutate(order = row_number()) %>%
+  ggplot(aes(x = body_mass,
+             y = order)) +
+  geom_point(shape = 1) +
+  #theme_dark() +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(y = "Number of values \u2265 x",
+       x = "Individual body mass") +
+  guides(size = "none") +
+  geom_line(data = fit_df,
+            aes(x = ))
+  NULL
+```
+
+
+
+
+
