@@ -1,7 +1,7 @@
 ---
 title: "response to andy 01"
 author: "Justin Pomeranz"
-date: "2024-05-08"
+date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
@@ -9,7 +9,8 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Load libraries and their package versions
+
+### Load libraries and their package versions
 ```{r}
 
 library(tidyverse)
@@ -25,11 +26,38 @@ R.version
 ```
 
 
-Load example data for Andy
+### Load example data for Andy
 
 ```{r}
 raw_orig <- read_csv("derived_data/example_for_andrew.csv")
 ```
+
+# Answers to Andy's Questions  
+
+1. Interpret `counts`. The way I interpret the count of 1.3 or 2.6 in your example would be that those numbers are the average abundance of that body size across 1 $km^2$ for fish, or the avergae number per $m^2$ for macroinvertebrates / + Fish. 
+
+As a larger point for the data resolution, this is going to be different for each data set. For this example (`df_Arranz`) I believe that fish were sampled with electrofishing and each individual was measured (either lengths or weights?). As far as I know, they were measured to the nearest *x* units do to rounding. So I guess technically they would be in "bins", but I think the original data was collected on an individual basis and the "discrete" results are due to rounding. Now that I say that out loud I guess that's kind of the point of the MEPS paper?
+
+In contrast, the `df_Pomeranz` is work I did in New Zealand where every invertebrate was measured to the nearest 0.1 mm and these lengths were converted to dry mass using published length-weight regressions. For example:
+
+```{r}
+raw_orig %>%
+  filter(dat_id == "df_Pomeranz.xlsx") %>%
+  select(site, body_mass, count, ind_n) %>% 
+  arrange(site, body_mass)
+```
+So in this example, I *think* we can consider the body mass continuous, and the `ind_n` is just a way of getting the "counts" on the per $m^2$ scale. However, I'm keen to get your thoughts on this. 
+
+**Action Item** Do we need to get detailed information from all the original authors on data collection/resolution to infer "bin widths" due to rounding? Is there a way we can simplify this or make assumptions to make it easier to apply to all data sets?
+
+2. *xmin*. Currently, we set *xmin* and *xmax* at the "local" scale. I.e., whatever the smallest and largest body size within a collection (i.e., the `group_id` column which is a unique combination of `dat_id` and `site_date`) is. Is your ongoing work with the histogram mode similar to the [Clauset et al. 2009 method](https://epubs.siam.org/doi/10.1137/070710111)?
+
+3. I don't think there was actually a question you were asking me?
+
+4. My results for `group==3572` were exactly the same as what you got. This was using MLEcount without "summing" the body sizes. i.e., the body_mass value of 200 was repeated twice instead of doubling the ind_n value. 
+
+
+# jpz's analyses for comparison  
 
 Starting out with one dataset to match Andy's initial analyses. 
 ```{r}
@@ -38,6 +66,8 @@ raw_simp_1 <- raw_orig %>%
   select(group_id, body_mass, ind_n)
 raw_simp_1
 ```
+
+### MLEcount  
 
 Here is my version of the mlecounts. I used slightly different syntax but we get exactly the same result. 
 
@@ -51,7 +81,10 @@ mle_count_res <- calcLike(
 mle_count_res
 ```
 
-Comparing with "normal" mle
+### Comparing with "normal" mle  
+
+Here, we can use the `negLL.PLB` method since each individual is represented once (i.e., the original "count" = 1). This won't work for all the datasets because of the difference in sampling effort and scales but we can do it here for comparison.  
+
 ```{r}
 range(raw_simp_1$ind_n)
 ```
@@ -73,9 +106,11 @@ mle_res
 
 The estimate is the same, but the CI is a decent bit narrower. 
 
+### Creating "long" data   
+
 Another option is to multiply the number of rows based on the number in `ind_n`. The `uncount()` function cannot take non-integers, but we can multiply the ind_n column by 10 to make 1.3004 = 13.004 and then round. This might not be the best option overall, but just for comparison's sake. 
 
-Also, for what it's worth, we did a similar thing in Pomeranz et al. 2022 using the NEON data. This was before I knew about MLEcounts and so we duplicated the number of rows based on the estimated abundance and used the "standard" MLE method. 
+Also, for what it's worth, we did a similar thing in Pomeranz et al. 2022 using the NEON invertebrate data. This was before I knew about MLEcounts and so we duplicated the number of rows based on the estimated abundance and used the "standard" MLE method. For the NEON invertebrate data, all the counts were integers. 
 
 ```{r}
 # expand the data into a long format
@@ -92,6 +127,9 @@ dim(simp_long)
 109 * 13
 # same as long data
 ```
+
+
+Now, instead of each observation appearing in one row, they are duplicated ~13 times. 
 
 mle estimate of long data
 ```{r}
@@ -125,7 +163,7 @@ res_df <- data.frame(method = c("count = 1.3",
 res_df
 ```
 
-All three methods give the same estimate but there is variation in the CI's. the "long" data has the narrowest CIs almost certainly becasue of the increased sample size (i.e., 1417 vs. 109). 
+All three methods give the same estimate but there is variation in the CI's. the "long" data has the narrowest CIs almost certainly because of the increased sample size (i.e., nrows = 1417 vs. 109). 
 
 
 # MLEbin  
@@ -141,12 +179,24 @@ First modify the data to put into `binData()` function, then try with non-intege
 raw_for_bin <- raw_simp_1 %>%
   rename(counts = ind_n) %>%
   select(body_mass, counts)
-binData(
-        counts = raw_for_bin,
+```
+
+The following is not run because it throws an error and prevents knitting the document. I incude it here and the error output below for reference. 
+```{r, eval=FALSE}
+binData(counts = raw_for_bin,
         binWidth = "2K")
 ```
 
-Jagen H'ghar is right, there is no function for non-integer counts. 
+Error out put from `binData()`
+```{r}
+## Error in binData(counts = raw_for_bin, binWidth = "2K") :
+## numbers in counts need to be integers in binData;
+## for non-integer count see a new function. Currently,
+## such a new function has no name [so says Jaqen H'ghar]. Or it may be easier 
+## to adapt binData.
+```
+
+Jagen H'ghar is right, this function does not work for non-integer counts. 
 
 ### Using a weighted histogram function  
 
@@ -196,7 +246,7 @@ estimate is quite a bit different from the other methods.
 data.frame(method = c("count = 1.3",
                       "mle_long",
                       "mle",
-                      "binned"),
+                      "weighted_bin"),
            estimate = c(mle_count_res$MLE,
                         mle_long_res$MLE,
                         mle_res$MLE,
@@ -215,10 +265,80 @@ data.frame(method = c("count = 1.3",
 
 binned estimate is higher (shallower) than others but CI width is slightly narrower except for the "long" data which is likely narrow due to increased sample size. 
 
+# compare weighted and binned approach
+
+Trying out the `binData()` function on the "long" data format. Here, I multiplied the `ind_n` by 10 and then rounded to make it an integer (i.e., 13) and then used the `uncount()` function to repeat each row 13 times. 
+
+```{r}
+x.binned <- binData(x = simp_long$body_mass,
+                     binWidth = "2k")
+
+num.bins <- nrow(x.binned$binVals)
+
+# bin breaks are the minima plus the max of the final bin:
+binBreaks <- c(dplyr::pull(x.binned$binVals, binMin),
+               dplyr::pull(x.binned$binVals, binMax)[num.bins])
+
+binCounts <- dplyr::pull(x.binned$binVals, binCount)
+
+MLEbin.res <-  calcLike(negLL.fn = negLL.PLB.binned,
+                        p = -1.5,
+                        w = binBreaks,
+                        d = binCounts,
+                        J = length(binCounts),   # = num.bins
+                        vecDiff = 1) 
+
+MLEbin.res
+
+```
+
+## Comparing all estimates and CIs
+
+```{r}
+data.frame(method = c("count = 1.3",
+                      "mle_long",
+                      "mle",
+                      "weighted_bin",
+                      "MLEbin"),
+           estimate = c(mle_count_res$MLE,
+                        mle_long_res$MLE,
+                        mle_res$MLE,
+                        mle_binned_res$MLE,
+                        MLEbin.res$MLE),
+           conf_lo = c(mle_count_res$conf[1],
+                        mle_long_res$conf[1],
+                        mle_res$conf[1],
+                        mle_binned_res$conf[1],
+                        MLEbin.res$conf[1]),
+           conf_hi = c(mle_count_res$conf[2],
+                        mle_long_res$conf[2],
+                        mle_res$conf[2],
+                        mle_binned_res$conf[2],
+                        MLEbin.res$conf[2])) %>%
+  mutate(ci_width = conf_hi - conf_lo)
+```
+
+It does appear that something different is ocurring when using the `wtd.hist()` function compared to the MLEbins recommended approach (i.e., `binData()`, then `negLL.PLB.binned()`) Maybe this is a difference in bin edges, or maybe the sample size isn't being correctly imported from the `wtd.host()` function? That might explain why there are wider CI's for that method. 
+
 
 # Plotting option  
 
 Here, I will use the `mle_count_res` as an example. 
+
+In the past, we have played around with this option. BAsically, the steps are as follows:  
+
+1. Resample the raw data using the ind_n column as a "weight".  
+  * We set the sample size to be consistent across samples. This makes it easier to compare the results from one sample to another.  
+  
+2. Create a new "y" variable called `order`. This is done by sorting the body sizes and then dividing by the sample size to make it a probability that x >= x (again for comparison sake).  
+
+3. Create a new data frame with the "fitted" values. Use the MLE estimate and confidence intervals to estimate the fitted values across the range of body sizes.  
+  * This is data-heavy. Sequencing all the numbers across the body size range takes a very large vector. There may be a better / more efficient way to do this? For this toy example it's not an issue, but if we applied it to all >3k sites I think my computer would explode.   
+  
+4. Combine the data frames and plot the raw data points with the "fitted" values.  
+
+
+### 1 and 2 resampling  
 
 ```{r}
 resampled_df <- raw_simp_1 %>%
@@ -232,7 +352,6 @@ resampled_df %>%
   ggplot(aes(x = body_mass,
              y = order)) +
   geom_point(shape = 1) +
-  #theme_dark() +
   theme_bw() +
   scale_x_log10() +
   scale_y_log10() +
@@ -243,7 +362,11 @@ resampled_df %>%
 
 ```
 
-```{r}
+### 3 Calculate "fitted" data frame  
+
+
+
+```{r, warning=FALSE}
 xmin = min(raw_simp_1$body_mass)
 xmax = max(raw_simp_1$body_mass)
 fit_df <- data.frame(
@@ -266,8 +389,11 @@ ggplot(fit_df,
   geom_line() +
   geom_ribbon(color = "grey50", alpha = 0.5) +
   scale_x_log10() +
+  theme_bw() +
   scale_y_log10()
 ```
+
+### 4 Combine and plot  
 
 
 ```{r message=FALSE, warning=FALSE}
@@ -290,42 +416,8 @@ full_join(fit_df, resampled_df_dw) %>%
   geom_ribbon(aes(
            ymin = y.PLBlower,
            ymax = y.PLBupper),
-    color = "grey50", alpha = 0.5)
-  NULL
-```
-
-
-
-
-
-
-
-
-
-
-```{r}
-raw_simp_1 %>%
-  sample_n(size = 1000,
-           weight = ind_n,
-           replace = TRUE) %>%
-  arrange(-body_mass) %>%
-  mutate(order = row_number()) %>%
-  ggplot(aes(x = body_mass,
-             y = order)) +
-  geom_point(shape = 1) +
-  #theme_dark() +
+    color = "grey50", alpha = 0.5) +
   theme_bw() +
-  scale_x_log10() +
-  scale_y_log10() +
-  labs(y = "Number of values \u2265 x",
-       x = "Individual body mass") +
-  guides(size = "none") +
-  geom_line(data = fit_df,
-            aes(x = ))
   NULL
 ```
-
-
-
-
 
