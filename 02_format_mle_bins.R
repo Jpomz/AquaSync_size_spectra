@@ -22,7 +22,7 @@ group_id_vec <- unique(raw_simp$group_id) [c(500:3115)]   # group_id's in exampl
 
 
 # set up dummy summary file for output to be saved
-s.out <- data.frame(site_date=unique(raw_orig$site_date), min.x = NA, max.x = NA, n = NA, b = NA, MLE.b =NA, MLE.b.l.ci = NA, MLE.b.u.ci =NA,
+s.out <- data.frame(site_date=unique(raw_orig$site_date), min.x = NA, max.x = NA, n = NA, MLE.b =NA, MLE.b.l.ci = NA, MLE.b.u.ci =NA,
                     p.val.k1 = NA, consistent.k1 = NA, p.val.k2 = NA, consistent.k2 = NA)
 
 # data set
