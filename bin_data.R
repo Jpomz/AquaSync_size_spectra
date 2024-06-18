@@ -243,3 +243,85 @@ fit_one_group_id <- function(raw_simp,
               GoF_K1 = GoF_res_K1,
               GoF_K2 = GoF_res_K2))
 }
+
+
+fit_one_list <- function(raw_simp,
+                         vecDiff = 1,
+                         suppress.warnings = TRUE){
+  
+  raw_simp_this_id <- raw_simp %>%
+    dplyr::arrange(body_mass)
+  
+  counts <- dplyr::select(raw_simp_this_id,
+                          x = body_mass,
+                          counts = ind_n)
+  
+  # Prob has a peak. If first index is peak then still good.
+  binned_with_peak <- bin_data(counts,
+                               binWidth = "2k")
+  
+  index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
+  
+  binned <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
+  
+  # Note binned is just the tibble, shortened versino of
+  # binned_with_peak$binVals, as we don't need $indiv for calcs.
+  
+  num.bins <- nrow(binned)
+  
+  # bin breaks are the minima plus the max of the final bin:
+  binBreaks <- c(dplyr::pull(binned, binMin),
+                 dplyr::pull(binned, binMax)[num.bins])
+  
+  binCounts <- dplyr::pull(binned,
+                           binCount)
+  
+  MLEbin.res <-  calcLike(negLL.PLB.binned,
+                          p = -1.5,
+                          w = binBreaks,
+                          d = binCounts,
+                          J = length(binCounts),   # = num.bins
+                          vecDiff = vecDiff,
+                          suppress.warnings = suppress.warnings)             # increase this if hit a bound
+  
+  GoF_res_K1 <- GoF_PLB(bin_breaks = binBreaks,
+                        bin_counts = binCounts,
+                        b = MLEbin.res$MLE,
+                        K = 1)
+  
+  GoF_res_K2 <- GoF_PLB(bin_breaks = binBreaks,
+                        bin_counts = binCounts,
+                        b = MLEbin.res$MLE,
+                        K = 2)
+  
+  result <- list(binned = binned,
+              binBreaks = binBreaks,
+              binCounts = binCounts,
+              MLEbin.res = MLEbin.res,
+              GoF_K1 = GoF_res_K1,
+              GoF_K2 = GoF_res_K2)
+  
+  # s.out$min.x[i] <- min(raw_simp_this_id$body_mass)
+  # s.out$max.x[i] <- max(raw_simp_this_id$body_mass)
+  # s.out$n[i] <- length(raw_simp_this_id$body_mass)
+  
+  # s.out$p.val.k1[i] <- res_this_id$GoF_K1$Pvalue
+  # s.out$consistent.k1[i] <- res_this_id$GoF_K1$consistent
+  # s.out$p.val.k2[i] <- res_this_id$GoF_K2$Pvalue
+  # s.out$consistent.k2[i] <- res_this_id$GoF_K2$consistent
+  
+  s.out <- data.frame(
+    group_id = unique(raw_simp_this_id$group_id),
+    site_date=unique(raw_simp_this_id$site_date),
+    min.x = min(raw_simp_this_id$body_mass),
+    max.x = max(raw_simp_this_id$body_mass),
+    n = length(raw_simp_this_id$body_mass),
+    MLE.b =result$MLEbin.res$MLE,
+    MLE.b.l.ci = result$MLEbin.res$conf[1],
+    MLE.b.u.ci =result$MLEbin.res$conf[2],
+    p.val.k1 = result$GoF_K1$Pvalue,
+    consistent.k1 = result$GoF_K1$consistent,
+    p.val.k2 = result$GoF_K2$Pvalue,
+    consistent.k2 = result$GoF_K2$consistent)
+  return(s.out)
+}
