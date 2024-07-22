@@ -5,6 +5,8 @@ library(tidyverse)
 library(sizeSpectra)
 library(readxl)
 
+# downloaded formatted files from teams site on July 22 2024
+
 ### df_borneo complete: ####
 # JPZ manually changed local copy of data
 # sampling_year --> year
@@ -21,6 +23,7 @@ library(readxl)
 ### df template lento-morin ####
 # site_data does not have information for site "07"
 
+### Loop to read in data  ####
 
 name_target <- c("site",
                  "year",
@@ -121,6 +124,8 @@ range(dat_df$group_id)
 
 # O'Gorman ####
 # need to fix O'Gorman data once it is formatted 
+# someone simulated this?? - DP 7/17/2024
+# Looks to me like just duplicated body mass values for each individual?
 
 # filter data ####
 # remove NA body_weight_units 
@@ -158,9 +163,9 @@ dat_df <- dat_df %>%
     body_weight_units == "mg WW" ~ body_mass * 0.25,
     body_weight_units == "mg_DM" ~ body_mass,
     body_weight_units == "mg_dry_mass" ~ body_mass
-  )) %>% 
+  )) #%>% 
   # Filter out small body sizes
-  filter(body_mass > 0.0026)
+  #filter(body_mass > 0.0026) # not doing this anymore since MLE_bins code starts at peak anyways
 
 # change weight units
 dat_df <- dat_df %>%
@@ -177,18 +182,21 @@ dat_df %>%
   sort()
 
 dat_df <- dat_df %>%
-  mutate(multiplier = case_when(
-    organism_groups == "Fish" ~ multiplier * 1000,
-    organism_groups == "fish" ~ multiplier * 1000,
-    .default = multiplier),
+  mutate(
+    multiplier = case_when(
+      organism_groups == "Fish" ~ multiplier * 1000,
+      organism_groups == "fish" ~ multiplier * 1000,
+      .default = multiplier),
     organism_groups = case_when(
       organism_groups == "fish" ~ "Fish",
+      organism_groups == "invertebrates" ~ "Invertebrates",
       organism_groups == "Invertebrates, Fish" ~ "Invertebrates + Fish",
       organism_groups == "Invertebrates + fish" ~ "Invertebrates + Fish",
       .default = organism_groups),
     organism_group = case_when(
       organism_group == "fish" ~ "Fish",
       organism_group == "Invertebrate" ~ "Invertebrates",
+      organism_group == "invertebrates" ~ "Invertebrates",
       .default = organism_group
     ))
 
@@ -212,24 +220,34 @@ dat_df <- dat_df %>%
   group_by(group_id) %>% # need to add organism group here???
   mutate(ind_n = (count * multiplier) / n_distinct(sample))
 
+dat_df %>%
+  filter(is.na(ind_n)) %>%
+  distinct(dat_id, site_date)
+
+# dat_df %>%
+#   filter(group_id == 15987) %>%
+#   View()
+
 # filter site_date with number and range ####
-filter_vector <- dat_df %>%
-  group_by(group_id, site_date) %>%
-  summarise(n = n(), 
-            max_size = log10(max(body_mass)),
-            min_size = log10(min(body_mass))) %>%
-  mutate(size_range = (max_size - min_size)) %>%
-  filter(n > 100,
-         size_range >= 3) %>%
-  pull(site_date) %>%
-  unique()
+# No longer doing this here ####
+# filter_vector <- dat_df %>%
+#   group_by(group_id, site_date) %>%
+#   summarise(n = n(), 
+#             max_size = log10(max(body_mass)),
+#             min_size = log10(min(body_mass))) %>%
+#   mutate(size_range = (max_size - min_size)) %>%
+#   filter(n > 100,
+#          size_range >= 3) %>%
+#   pull(site_date) %>%
+#   unique()
+# 
+# filter_vector
+# 
+# dat_out <- dat_df |> 
+#   filter(site_date %in% filter_vector) %>%
+#   ungroup()
 
-filter_vector
-
-dat_out <- dat_df |> 
-  filter(site_date %in% filter_vector) %>%
-  ungroup()
-
+dat_out <- dat_df %>% ungroup()
 dim(dat_df)
 dim(dat_out)
 n_distinct(dat_df$site_date)
@@ -240,5 +258,5 @@ dat_out %>%
 dat_out %>%
   distinct(organism_groups)
 
-saveRDS(dat_out, "derived_data/formatted_files_stitched_filtered_April-2024.RDS")
+saveRDS(dat_out, "derived_data/formatted_files_stitched_filtered_July-2024.RDS")
 
