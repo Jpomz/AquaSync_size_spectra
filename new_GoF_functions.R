@@ -1,3 +1,9 @@
+### JP edits ###
+# I modified the combine_bins() function
+# changed #stopifnot(sum(combined_counts) == sum(binCounts))
+# to 
+# stopifnot(all.equal(sum(combined_counts), sum(binCounts)))
+
 # New functions for GoF analyses, to be sourced as I work on the code in
 # Goodness_of_fit.Rmd, and then copied into sizeSpectra once done.
 
@@ -93,7 +99,9 @@ combine_bins <- function(binBreaks,
      combined_breaks <- combined_breaks[-M]
   }
 
-  stopifnot(sum(combined_counts) == sum(binCounts))
+  # modified this to be all.equal
+  #stopifnot(sum(combined_counts) == sum(binCounts))
+  stopifnot(all.equal(sum(combined_counts), sum(binCounts)))
 
   return(list(combined_breaks = combined_breaks,
               combined_counts = combined_counts))

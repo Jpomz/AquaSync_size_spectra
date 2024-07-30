@@ -311,7 +311,7 @@ fit_one_list <- function(raw_simp,
   # s.out$consistent.k2[i] <- res_this_id$GoF_K2$consistent
   
   s.out <- data.frame(
-    group_id = unique(raw_simp_this_id$group_id),
+    analysis_id = unique(raw_simp_this_id$analysis_id),
     site_date=unique(raw_simp_this_id$site_date),
     min.x = min(raw_simp_this_id$body_mass),
     max.x = max(raw_simp_this_id$body_mass),
