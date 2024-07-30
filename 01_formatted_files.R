@@ -143,6 +143,31 @@ dim(dat_df)
 # what are the body weight units?
 dat_df$body_weight_units %>% unique() %>% sort()
 
+dat_df %>%
+  pull(organism_group) %>%
+  unique() %>%
+  sort()
+
+dat_df |>
+  select(organism_group, body_weight_units) |>
+  distinct() %>%
+  filter(organism_group == "Invertebrates" |
+           organism_group == "Invertebrate" |
+           organism_group == "invertebrates" )
+dat_df |>
+  filter(organism_group == "Invertebrates",
+         body_weight_units == "g WW") |>
+  select(dat_id) |>
+  unique()
+
+dat_df |>
+  filter(body_weight_units == "g WW" |
+           body_weight_units == "grams/wet" |
+           body_weight_units == "mg wet weight" |
+           body_weight_units == "mg WW" ) |>
+  select(dat_id) |>
+  unique()
+
 # need to add code to update body_weight_units
 dat_df <- dat_df %>%
   mutate(body_mass = case_when(
