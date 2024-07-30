@@ -258,8 +258,10 @@ length(mle_res_id)
 
 # save outputs ####
 saveRDS(mle_bin_res_df, "derived_data/mle_bin_gof_result.RDS")
+#mle_bin_res_df <- readRDS("derived_data/mle_bin_gof_result.RDS")
 saveRDS(bin_tibble_list, "derived_data/list_bin_tibbles.RDS")
 saveRDS(biomass_df, "derived_data/sum_biomass_df.RDS")
+# biomass_df <- readRDS("derived_data/sum_biomass_df.RDS")
 
 
 
