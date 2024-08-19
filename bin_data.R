@@ -244,11 +244,14 @@ fit_one_group_id <- function(raw_simp,
               GoF_K2 = GoF_res_K2))
 }
 
-
+# add a true/false for peak or no peak? ####
 fit_one_list <- function(raw_simp,
                          vecDiff = 1,
+                         cut_off = TRUE,
                          suppress.warnings = TRUE){
   
+  # for testing purposes
+  # raw_simp <- dat_split$'15737'
   raw_simp_this_id <- raw_simp %>%
     dplyr::arrange(body_mass)
   
@@ -259,10 +262,21 @@ fit_one_list <- function(raw_simp,
   # Prob has a peak. If first index is peak then still good.
   binned_with_peak <- bin_data(counts,
                                binWidth = "2k")
+  if(cut_off == TRUE){
   
   index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
   
   binned <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
+  min_body <- binned$binMin[1]
+  
+  indiv <- binned_with_peak$indiv |>
+    filter(x >= min_body)
+  }
+  
+  if(cut_off == FALSE){
+    binned <- binned_with_peak$binVals
+    indiv <- binned_with_peak$indiv
+  }
   
   # Note binned is just the tibble, shortened versino of
   # binned_with_peak$binVals, as we don't need $indiv for calcs.
@@ -313,9 +327,10 @@ fit_one_list <- function(raw_simp,
   s.out <- data.frame(
     analysis_id = unique(raw_simp_this_id$analysis_id),
     site_date=unique(raw_simp_this_id$site_date),
-    min.x = min(raw_simp_this_id$body_mass),
-    max.x = max(raw_simp_this_id$body_mass),
-    n = length(raw_simp_this_id$body_mass),
+    min.x = min(indiv$x), # change to binned$indiv
+    max.x = max(indiv$x),
+    n = length(indiv$x),
+    sum_bin_counts = sum(binCounts),
     MLE.b =result$MLEbin.res$MLE,
     MLE.b.l.ci = result$MLEbin.res$conf[1],
     MLE.b.u.ci =result$MLEbin.res$conf[2],

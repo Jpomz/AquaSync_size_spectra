@@ -6,7 +6,7 @@ library(sizeSpectra)
 source("new_GoF_functions.R")   # load in new functions
 source("bin_data.R")
 
-raw_orig <- readRDS("derived_data/formatted_files_stitched_filtered_July-2024.RDS")
+raw_orig <- readRDS("derived_data/formatted_files_stitched_filtered_Aug-2024.RDS")
 
 raw_simp <- raw_orig |>
   ungroup()
@@ -31,11 +31,11 @@ raw_simp <- raw_simp |>
   mutate(analysis_id = cur_group_id()) |>
   ungroup()
 
-raw_simp |> 
+raw_simp |>
   filter(dat_id == "df_NEON.xlsx") |>
   select(group_id, analysis_id, analysis_group) %>%
-  distinct() %>%
-  View()
+  distinct() #%>%
+#   View()
 
 range(raw_simp$group_id)
 range(raw_simp$analysis_id)
@@ -47,14 +47,14 @@ site_info <- raw_simp %>%
          geographical_latitude) %>%
   distinct()
 
-raw_simp <- select(raw_simp,
+raw_simp_to_split <- select(raw_simp,
                    site_date,
                    analysis_id,
                    body_mass,
                    ind_n)
 
 
-dat_split <- raw_simp %>%
+dat_split <- raw_simp_to_split %>%
   split(raw_simp$analysis_id)
 length(dat_split)
 
@@ -92,13 +92,14 @@ for (i in 1:length(mle_bin)){
   if(is.character(mle_bin[[i]])){
     out <- data.frame(
       analysis_id = as.numeric(names(mle_bin[i])),
-      site_date=NA,
+      site_date = NA,
       min.x = NA,
       max.x = NA,
       n = NA,
-      MLE.b =NA,
+      sum_bin_counts = NA,
+      MLE.b = NA,
       MLE.b.l.ci = NA,
-      MLE.b.u.ci =NA,
+      MLE.b.u.ci = NA,
       p.val.k1 = NA,
       consistent.k1 = NA,
       p.val.k2 = NA,
@@ -111,14 +112,13 @@ for (i in 1:length(mle_bin)){
   mle_bin_rows[[i]] <- out
 }
 
-
 mle_bin_res_df <- bind_rows(mle_bin_rows)
 
 mle_bin_res_df %>%
   group_by(error) %>%
   count()
 
-#### vecDiff = 1
+#### vecDiff = 1 ####
 # time = 165
 # estimates = 14,197
 
@@ -128,20 +128,23 @@ mle_bin_res_df %>%
 # <chr>                                      <int>
 # 1 Need to make vecDiff larger - see R window   592
 # 2 missing value where TRUE/FALSE needed         13
-# not sure what this is but it's only 13 estimates
-
+# not sure what this is 
+# but it's only 13 estimates
 # 3 sum(binCounts) >= minCounts is not TRUE       20
-# not a high enough count even after combining bins
+# not a high enough count even 
+# after combining bins
 
 # 4 too many open devices                       1564 
-# pretty sure this is the same "vecDiff" error but a result of 
-# parallel computing - can't make a new plot when there 
+# pretty sure this is the same "vecDiff" error 
+# but a result of 
+# parallel computing - 
+#  ,can't make a new plot when there 
 # is more cores than graphics devices 
 
 # 5 NA                                         14197 
 # these are the estimates
 
-#### vecDiff = 20
+#### vecDiff = 20 ####
 # time = 1327 seconds (22 minutes)
 # estimates = 15,170
 
@@ -155,6 +158,78 @@ mle_bin_res_df %>%
 # 4 too many open devices                        511
 # 5 NA                                         15170
 
+
+# no cut-off ####
+(cut_test <- fit_one_list(dat_split$'7', cut_off = TRUE))
+(no_cut_test <- fit_one_list(dat_split$'7', cut_off = FALSE))
+
+
+tictoc::tic()
+plan(cluster, workers = 10)
+
+vecDiff = 20 # bigger value = more estimates, 
+# but longer time and some huge CI's
+
+mle_bin_no_cut <- dat_split |>
+  future_map(possibly2(function(.data){
+    fit_one_list(.data, vecDiff = vecDiff,
+                 cut_off = FALSE)
+    # calcLike(
+    #   negLL.fn = negLL.PLB.counts,
+    #   x = .data$body_mass,
+    #   c = .data$ind_n,
+    #   p = -1.5,
+    #   vecDiff = vecDiff)
+  })
+  )
+
+plan(cluster, workers = 1)
+tictoc::toc()
+
+
+mle_bin_no_cut_rows <- list()
+for (i in 1:length(mle_bin_no_cut)){
+  if(is.character(mle_bin_no_cut[[i]])){
+    out <- data.frame(
+      analysis_id = as.numeric(names(mle_bin_no_cut[i])),
+      site_date=NA,
+      min.x = NA,
+      max.x = NA,
+      n = NA,
+      sum_bin_counts = NA,
+      MLE.b =NA,
+      MLE.b.l.ci = NA,
+      MLE.b.u.ci =NA,
+      p.val.k1 = NA,
+      consistent.k1 = NA,
+      p.val.k2 = NA,
+      consistent.k2 = NA,
+      error = mle_bin_no_cut[[i]][1])
+  } else{
+    out <- mle_bin_no_cut[[i]]
+    out$error <- NA
+  }
+  mle_bin_no_cut_rows[[i]] <- out
+}
+
+
+mle_bin_no_cut_res_df <- bind_rows(mle_bin_no_cut_rows)
+
+mle_bin_no_cut_res_df %>%
+  group_by(error) %>%
+  count()
+
+# # A tibble: 5 × 2
+# # Groups:   error [5]
+# error                                          n
+# <chr>                                      <int>
+#   1 Need to make vecDiff larger - see R window  337
+# 2 missing value where TRUE/FALSE needed         13
+# 3 sum(binCounts) >= minCounts is not TRUE       238
+# 4 too many open devices                         82
+# 5 NA                                            15716
+
+# mle_bin_res_df ####
 
 dim(mle_bin_res_df)
 
@@ -182,6 +257,7 @@ ggplot(mle_bin_res_df,
 
 
 # binned tibbles ####
+# cutoff ####
 mle_res_id <- mle_bin_res_df %>%
   filter(!is.na(MLE.b)) %>%
   pull(analysis_id) %>%
@@ -212,21 +288,65 @@ for(i in 1:length(mle_res_id)){
   indiv <- binned_with_peak$indiv |>
     filter(x >= min_body)
   
+  # add biomass sum here? ####
+  
   bin_tibble_list[[i]] <- list(indiv = indiv,
                                binned = binned)
+  # include biomass in list output?
 }
 tictoc::toc()
 # 141 sec
 
 names(bin_tibble_list) <- as.character(mle_res_id)
-### Biomass ###
+
+# cutoff ####
+# bin tibble without a cutoff 
+mle_res_no_id <- mle_bin_no_cut_res_df %>%
+  filter(!is.na(MLE.b)) %>%
+  pull(analysis_id) %>%
+  unique()
+
+class(mle_res_no_id)
+
+dat_split[[as.character(mle_res_no_id[1])]]
+
+bin_tibble_no_cutoff_list <- list()
+
+tictoc::tic()
+# repeat this but just binData(), no cut off at peak ####
+for(i in 1:length(mle_res_no_id)){
+  i_char <- as.character(mle_res_no_id[i])
+  
+  counts <- dat_split[[i_char]] %>%
+    select(x = body_mass,
+           counts = ind_n)
+  binned_with_peak <- bin_data(counts,
+                               binWidth = "2k")
+  
+  binned <- binned_with_peak$binVals
+  
+  indiv <- binned_with_peak$indiv
+  
+  bin_tibble_no_cutoff_list[[i]] <- list(indiv = indiv,
+                                         binned = binned)
+  # include biomass in list output?
+}
+tictoc::toc()
+
+names(bin_tibble_no_cutoff_list) <- as.character(mle_res_no_id)
+
+### Biomass ####
 # sum up the individuals for each group, make a data.frame
 
+# repeat following without cut off ####
+# cutoff ####
 biomass_list <- list()
 for(i in 1:length(bin_tibble_list)){
   indiv <- bin_tibble_list[[i]]$indiv
   
-  sum_biomass <- sum(indiv$x)
+  sum_biomass <- sum(indiv$x * indiv$counts)
+  # x = individual body size
+  # counts = number of those individuals 
   out <- data.frame(
     analysis_id = as.numeric(names(bin_tibble_list)[i]),
     biomass = sum_biomass)
@@ -236,34 +356,170 @@ biomass_df <- bind_rows(biomass_list)
 biomass_df <- biomass_df %>%
   left_join(site_info) 
 
-biomass_df|>
-  ggplot(aes(x = abs(geographical_latitude),
-             y = biomass, 
-             color = analysis_group)) +
-  geom_point() +
-  theme_bw() +
-  facet_wrap(~analysis_group) +
-  scale_y_log10()
+# no cutoff ####
+biomass_no_cut_list <- list()
+for(i in 1:length(bin_tibble_no_cutoff_list)){
+  indiv <- bin_tibble_no_cutoff_list[[i]]$indiv
+  
+  sum_biomass <- sum(indiv$x * indiv$counts)
+  # x = individual body size
+  # counts = number of those individuals 
+  out <- data.frame(
+    analysis_id = as.numeric(names(bin_tibble_no_cutoff_list)[i]),
+    biomass = sum_biomass)
+  biomass_no_cut_list[[i]] <- out
+}
+biomass_no_cut_df <- bind_rows(biomass_no_cut_list)
+biomass_no_cut_df <- biomass_no_cut_df %>%
+  left_join(site_info) 
 
-### lbn_plot ###
+# biomass_df|>
+#   ggplot(aes(x = abs(geographical_latitude),
+#              y = biomass, 
+#              color = analysis_group)) +
+#   geom_point() +
+#   theme_bw() +
+#   facet_wrap(~analysis_group) +
+#   scale_y_log10()
+
+### lbn_plot ####
+# finish this with full data ####
+# only got through testing and then got sidetracked. 
+
+mle_bin_res_df
+lines_test <- fit_one_list(dat_split[[1]])
+# df <- lines_test
+
+lines_coef <- function(min.x,
+                       max.x,
+                       MLE.b,
+                       sum_bin_counts){
+  xmin = min.x
+  xmax = max.x
+  x_plb <- exp(seq(log(xmin),
+                   log(xmax), 
+                   length = 10000))
+  
+  y_plb <- dPLB(x_plb,
+                b = MLE.b, 
+                xmin = min(x_plb),
+                xmax = max(x_plb)) * 
+    sum_bin_counts * x_plb
+  
+  coef_out <- coef(lm(y_plb ~ x_plb))
+  return(data.frame(fit_intercept = coef_out[1],
+                    fit_slope = coef_out[2],
+                    row.names = NULL))
+}
+
+lines_coef(lines_test$min.x,
+           lines_test$max.x,
+           lines_test$MLE.b,
+           lines_test$sum_bin_counts)
+
+lines_test_2 <- fit_one_list(dat_split[[2]])
+lines_test_3 <- fit_one_list(dat_split[[3]])
+lines_test_4 <- fit_one_list(dat_split[[4]])
+lines_test_5 <- fit_one_list(dat_split[[5]])
+
+df_test <- bind_rows(lines_test_2,
+          lines_test_3,
+          lines_test_4,
+          lines_test_5,
+          lines_test)
+
+coef_small <- df_test %>%
+  rowwise() %>%
+  mutate(coefs = pmap(list(min.x,
+                   max.x,
+                   MLE.b,
+                   sum_bin_counts),
+                    .f = lines_coef)) %>%
+  unnest(coefs)
+
+x_y_lines <- function(min.x, max.x, fit_intercept, fit_slope, n = 1000){
+  x = seq(min.x, max.x, length.out = n)
+  y = fit_intercept + x * fit_slope
+  return(data.frame(x = x, y = y))
+}
+
+# x_y_lines(coef_small[1, "min.x"],
+#           coef_small[1, "max.x"],
+#           coef_small[1, "fit_intercept"],
+#           coef_small[1, "fit_slope"])
+
+coef_small %>%
+  rowwise() %>%
+  mutate(x_y = pmap(list(min.x, max.x, fit_intercept, fit_slope, n = 10),
+                    .f = x_y_lines)) %>%
+  unnest(x_y) %>%
+  ggplot(aes(x = x, y = y, group = analysis_id)) +
+  geom_line()
+
+
+coef_small <- mle_bin_res_df %>%
+  filter(!is.na(MLE.b)) %>%
+  rowwise() %>%
+  mutate(coefs = pmap(list(min.x,
+                           max.x,
+                           MLE.b,
+                           sum_bin_counts),
+                      .f = lines_coef)) %>%
+  unnest(coefs)
+
+lines_df <- coef_small %>%
+    rowwise() %>%
+    mutate(x_y = pmap(list(min.x, max.x, fit_intercept, fit_slope, n = 10),
+                      .f = x_y_lines)) %>%
+    unnest(x_y) 
+
+lines_df %>%
+  left_join(site_info %>%
+              select(analysis_id, analysis_group)) %>%
+  ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_group)) +
+  geom_line() +
+  facet_wrap(~analysis_group) +
+  theme_bw()
+
 # how can I extract the information to re-create the LBN plots? 
 # data in bin_tibble_list$binned
 ## boxes ##
-# how to make the boxes? geom_rect, left-righ = binMin Max
+# how to make the boxes? geom_rect, left-right = binMin Max
 # top-bottom = high and low counts??
 ## lines ##
 # LBN uses dPLB() or something I think? "lines()" in base R plotting?
 
+# seq x values
+# calculate y values 
+# B.PLB <- dPLB(x.PLB, b = b.MLE, xmin = min(x.PLB), xmax = max(x.PLB)) * sum(binTibble$Number) * x.PLB
+# fit lm(B.plb ~ x.PLB)
+# extract beta_0, beta_1
+# add to df output
+# use that data frame to make vector of x-y values and plot together
+
 length(mle_res_id)
 
 # save outputs ####
-saveRDS(mle_bin_res_df, "derived_data/mle_bin_gof_result.RDS")
+# mle bin results dataframe
+saveRDS(mle_bin_res_df,
+        "derived_data/mle_bin_cutoff_gof_result.RDS")
 #mle_bin_res_df <- readRDS("derived_data/mle_bin_gof_result.RDS")
-saveRDS(bin_tibble_list, "derived_data/list_bin_tibbles.RDS")
-saveRDS(biomass_df, "derived_data/sum_biomass_df.RDS")
+saveRDS(mle_bin_no_cut_res_df,
+        "derived_data/mle_bin_no_cutoff_gof_result.RDS")
+
+# bin tibble lists
+saveRDS(bin_tibble_list,
+        "derived_data/list_bin_cutoff_tibbles.RDS")
+saveRDS(bin_tibble_no_cutoff_list,
+        "derived_data/list_bin_no_cutoff_tibbles.RDS")
+  
+# biomass results 
+saveRDS(biomass_df,
+        "derived_data/sum_cutoff_biomass_df.RDS")
 # biomass_df <- readRDS("derived_data/sum_biomass_df.RDS")
-
-
+saveRDS(biomass_no_cut_df,
+        "derived_data/sum_no_cutoff_biomass_df.RDS")
+#
 
 # to do list july 2024 ----------------------------------------------------
 
