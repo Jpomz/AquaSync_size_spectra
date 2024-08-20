@@ -84,7 +84,7 @@ mle_bin <- dat_split |>
   )
 
 plan(cluster, workers = 1)
-tictoc::toc()
+tictoc::toc() # ~ 25 minutes
 
 
 mle_bin_rows <- list()
@@ -113,7 +113,17 @@ for (i in 1:length(mle_bin)){
 }
 
 mle_bin_res_df <- bind_rows(mle_bin_rows)
+# mle_bin_res_df ####
 
+dim(mle_bin_res_df)
+
+mle_bin_res_df <- mle_bin_res_df %>%
+  left_join(site_info)
+dim(mle_bin_res_df)
+
+names(mle_bin_res_df)
+
+# errors mle_bin_res ####
 mle_bin_res_df %>%
   group_by(error) %>%
   count()
@@ -184,7 +194,7 @@ mle_bin_no_cut <- dat_split |>
   )
 
 plan(cluster, workers = 1)
-tictoc::toc()
+tictoc::toc() # ~ 23 minutes
 
 
 mle_bin_no_cut_rows <- list()
@@ -215,6 +225,16 @@ for (i in 1:length(mle_bin_no_cut)){
 
 mle_bin_no_cut_res_df <- bind_rows(mle_bin_no_cut_rows)
 
+# mle_bin_no_cut_res_df ####
+
+dim(mle_bin_res_df)
+
+mle_bin_no_cut_res_df <- mle_bin_no_cut_res_df %>%
+  left_join(site_info)
+dim(mle_bin_no_cut_res_df)
+
+names(mle_bin_no_cut_res_df)
+
 mle_bin_no_cut_res_df %>%
   group_by(error) %>%
   count()
@@ -229,31 +249,22 @@ mle_bin_no_cut_res_df %>%
 # 4 too many open devices                         82
 # 5 NA                                            15716
 
-# mle_bin_res_df ####
 
-dim(mle_bin_res_df)
-
-mle_bin_res_df <- mle_bin_res_df %>%
-  left_join(site_info)
-dim(mle_bin_res_df)
-
-names(mle_bin_res_df)
-
-ggplot(mle_bin_res_df,
-       aes(x = abs(geographical_latitude),
-           y = MLE.b,
-           ymin = MLE.b.l.ci,
-           ymax = MLE.b.u.ci,
-           color = analysis_group)) +
-  geom_pointrange(alpha = 0.5) +
-  theme_bw() +
-  #geom_smooth(method = "lm") +
-  facet_wrap(~analysis_group)
-
-ggplot(mle_bin_res_df,
-       aes(x = MLE.b,
-           fill = organism_groups)) +
-  geom_density(alpha = 0.5, bounds = c(-5, 0))
+# ggplot(mle_bin_res_df,
+#        aes(x = abs(geographical_latitude),
+#            y = MLE.b,
+#            ymin = MLE.b.l.ci,
+#            ymax = MLE.b.u.ci,
+#            color = analysis_group)) +
+#   geom_pointrange(alpha = 0.5) +
+#   theme_bw() +
+#   #geom_smooth(method = "lm") +
+#   facet_wrap(~analysis_group)
+# 
+# ggplot(mle_bin_res_df,
+#        aes(x = MLE.b,
+#            fill = organism_groups)) +
+#   geom_density(alpha = 0.5, bounds = c(-5, 0))
 
 
 # binned tibbles ####
@@ -331,7 +342,7 @@ for(i in 1:length(mle_res_no_id)){
                                          binned = binned)
   # include biomass in list output?
 }
-tictoc::toc()
+tictoc::toc() # 
 
 names(bin_tibble_no_cutoff_list) <- as.character(mle_res_no_id)
 
