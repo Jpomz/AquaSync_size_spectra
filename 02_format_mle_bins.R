@@ -33,9 +33,9 @@ raw_simp <- raw_simp |>
 
 raw_simp |>
   filter(dat_id == "df_NEON.xlsx") |>
-  select(group_id, analysis_id, analysis_group) %>%
-  distinct() #%>%
-#   View()
+  select(site_date, group_id, analysis_id, analysis_group) %>%
+  distinct() %>%
+   View()
 
 range(raw_simp$group_id)
 range(raw_simp$analysis_id)
@@ -43,7 +43,7 @@ range(raw_simp$analysis_id)
 site_info <- raw_simp %>%
   select(group_id, 
          analysis_id, analysis_group,
-         organism_group, organism_groups,
+         #organism_group, organism_groups,
          geographical_latitude) %>%
   distinct()
 
@@ -474,10 +474,13 @@ lines_df <- coef_small %>%
     unnest(x_y) 
 
 lines_df %>%
+  select(analysis_id, x, y) %>%
   left_join(site_info %>%
               select(analysis_id, analysis_group)) %>%
   ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_group)) +
   geom_line() +
+  scale_y_log10() +
+  #scale_x_log10() +
   facet_wrap(~analysis_group) +
   theme_bw()
 
@@ -503,13 +506,14 @@ length(mle_res_id)
 # mle bin results dataframe
 saveRDS(mle_bin_res_df,
         "derived_data/mle_bin_cutoff_gof_result.RDS")
-#mle_bin_res_df <- readRDS("derived_data/mle_bin_gof_result.RDS")
+#mle_bin_res_df <- readRDS("derived_data/mle_bin_cutoff_gof_result.RDS")
 saveRDS(mle_bin_no_cut_res_df,
         "derived_data/mle_bin_no_cutoff_gof_result.RDS")
 
 # bin tibble lists
 saveRDS(bin_tibble_list,
         "derived_data/list_bin_cutoff_tibbles.RDS")
+# bin_tibble_list <- readRDS("derived_data/list_bin_cutoff_tibbles.RDS")
 saveRDS(bin_tibble_no_cutoff_list,
         "derived_data/list_bin_no_cutoff_tibbles.RDS")
   
