@@ -209,7 +209,7 @@ dat_df %>%
 dat_df <- dat_df %>%
   mutate(
     multiplier = case_when(
-      organism_groups == "Fish" ~ multiplier * 1000,
+      organism_groups == "Fish" ~ multiplier * 1000, #multiply meters^2 by a large whole number
       organism_groups == "fish" ~ multiplier * 1000,
       .default = multiplier),
     organism_groups = case_when(

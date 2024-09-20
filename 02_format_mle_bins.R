@@ -31,11 +31,11 @@ raw_simp <- raw_simp |>
   mutate(analysis_id = cur_group_id()) |>
   ungroup()
 
-raw_simp |>
-  filter(dat_id == "df_NEON.xlsx") |>
-  select(site_date, group_id, analysis_id, analysis_group) %>%
-  distinct() %>%
-   View()
+# raw_simp |>
+#   filter(dat_id == "df_NEON.xlsx") |>
+#   select(site_date, group_id, analysis_id, analysis_group) %>%
+#   distinct() %>%
+#    View()
 
 range(raw_simp$group_id)
 range(raw_simp$analysis_id)
@@ -404,7 +404,7 @@ lines_test <- fit_one_list(dat_split[[1]])
 lines_coef <- function(min.x,
                        max.x,
                        MLE.b,
-                       sum_bin_counts){
+                       sum_bin_counts){ # bincount norm?
   xmin = min.x
   xmax = max.x
   x_plb <- exp(seq(log(xmin),
@@ -418,15 +418,52 @@ lines_coef <- function(min.x,
     sum_bin_counts * x_plb
   
   coef_out <- coef(lm(y_plb ~ x_plb))
-  return(data.frame(fit_intercept = coef_out[1],
+  return(
+    #list(
+    fit = data.frame(fit_intercept = coef_out[1],
                     fit_slope = coef_out[2],
-                    row.names = NULL))
+                    row.names = NULL)#,
+         # x_y_plb = data.frame(x_plb = x_plb,
+         #                      y_plb = y_plb))
+  )
 }
 
 lines_coef(lines_test$min.x,
            lines_test$max.x,
            lines_test$MLE.b,
            lines_test$sum_bin_counts)
+
+sim_line_1 <- lines_coef(lines_test$min.x,
+                         lines_test$max.x,
+                         lines_test$MLE.b,
+                         lines_test$sum_bin_counts)
+
+sim_line_2 <- lines_coef(lines_test$min.x,
+                         lines_test$max.x,
+                         lines_test$MLE.b - 1,
+                         lines_test$sum_bin_counts)
+sim_line_3 <- lines_coef(lines_test$min.x,
+                         lines_test$max.x,
+                         lines_test$MLE.b,
+                         lines_test$sum_bin_counts + 100)
+
+sim_test <- bind_rows(sim_line_1, sim_line_2, sim_line_3)
+
+sim_test %>%
+  rowwise() %>%
+  mutate(x_y = pmap(list(min.x = lines_test$min.x,
+                         max.x = lines_test$max.x,
+                         fit_intercept,
+                         fit_slope, 
+                         n = 100),
+                    .f = x_y_lines)) %>%
+  unnest(x_y) %>%
+  ggplot(aes(x = x, y = y, group = fit_intercept, color = fit_intercept)) +
+  geom_line() +
+  # scale_x_log10() +
+  # scale_y_log10() +
+  #xlim (0, 2000) +
+  NULL
 
 lines_test_2 <- fit_one_list(dat_split[[2]])
 lines_test_3 <- fit_one_list(dat_split[[3]])
@@ -460,12 +497,21 @@ x_y_lines <- function(min.x, max.x, fit_intercept, fit_slope, n = 1000){
 #           coef_small[1, "fit_slope"])
 
 coef_small %>%
+  sample_n(10) %>%
   rowwise() %>%
-  mutate(x_y = pmap(list(min.x, max.x, fit_intercept, fit_slope, n = 10),
+  mutate(x_y = pmap(list(min.x,
+                         max.x,
+                         fit_intercept,
+                         fit_slope, 
+                         n = 100),
                     .f = x_y_lines)) %>%
   unnest(x_y) %>%
-  ggplot(aes(x = x, y = y, group = analysis_id)) +
-  geom_line()
+  ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_id)) +
+  geom_line() +
+  # scale_x_log10() +
+  # scale_y_log10() +
+  #xlim (0, 2000) +
+  NULL
 
 
 coef_small <- mle_bin_res_df %>%
@@ -480,7 +526,11 @@ coef_small <- mle_bin_res_df %>%
 
 lines_df <- coef_small %>%
     rowwise() %>%
-    mutate(x_y = pmap(list(min.x, max.x, fit_intercept, fit_slope, n = 10),
+    mutate(x_y = pmap(list(min.x,
+                           max.x,
+                           fit_intercept,
+                           fit_slope,
+                           n = 100),
                       .f = x_y_lines)) %>%
     unnest(x_y) 
 
@@ -490,9 +540,9 @@ lines_df %>%
               select(analysis_id, analysis_group)) %>%
   ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_group)) +
   geom_line() +
-  scale_y_log10() +
-  #scale_x_log10() +
-  facet_wrap(~analysis_group) +
+  # scale_y_log10() +
+  # scale_x_log10() +
+  facet_wrap(~analysis_group, scales = "free") +
   theme_bw()
 
 # how can I extract the information to re-create the LBN plots? 
@@ -520,6 +570,7 @@ saveRDS(mle_bin_res_df,
 #mle_bin_res_df <- readRDS("derived_data/mle_bin_cutoff_gof_result.RDS")
 saveRDS(mle_bin_no_cut_res_df,
         "derived_data/mle_bin_no_cutoff_gof_result.RDS")
+
 
 # bin tibble lists
 saveRDS(bin_tibble_list,
