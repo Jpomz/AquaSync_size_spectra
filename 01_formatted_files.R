@@ -5,7 +5,7 @@ library(tidyverse)
 library(sizeSpectra)
 library(readxl)
 
-# downloaded formatted files from teams site on July 22 2024
+# downloaded formatted files from teams site on Dec 18 2024
 
 ### df_borneo complete: ####
 # JPZ manually changed local copy of data
@@ -102,10 +102,13 @@ for(i in 1:length(file_paths)){
   # save dat_in to list
   data_list[[i]] <- dat_in
 }
-tictoc::toc()
+tictoc::toc() # takes ~ 3 minutes
 # check files
 list_to_fix_names
 
+# code to remove bad hungary file for now
+# data_list[[33]] <- NULL
+# length(data_list)
 
 # map(data_list,
 #     \(df) df %>% pull(geographical_latitude) %>% is.double())
@@ -242,7 +245,7 @@ dat_df <- dat_df %>%
 
 # ind_n per organism group? ####
 dat_df <- dat_df %>%
-  group_by(group_id) %>% # need to add organism group here???
+  group_by(group_id, organism_group) %>% # need to add organism group here???
   mutate(ind_n = (count * multiplier) / n_distinct(sample))
 
 dat_df %>%
@@ -283,5 +286,5 @@ dat_out %>%
 dat_out %>%
   distinct(organism_groups)
 
-saveRDS(dat_out, "derived_data/formatted_files_stitched_filtered_Aug-2024.RDS")
+saveRDS(dat_out, "derived_data/formatted_files_stitched_filtered_Dec-2024.RDS")
 

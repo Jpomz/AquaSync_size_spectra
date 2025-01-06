@@ -6,7 +6,7 @@ library(sizeSpectra)
 source("new_GoF_functions.R")   # load in new functions
 source("bin_data.R")
 
-raw_orig <- readRDS("derived_data/formatted_files_stitched_filtered_Aug-2024.RDS")
+raw_orig <- readRDS("derived_data/formatted_files_stitched_filtered_Dec-2024.RDS")
 
 raw_simp <- raw_orig |>
   ungroup()
@@ -299,7 +299,12 @@ for(i in 1:length(mle_res_id)){
   indiv <- binned_with_peak$indiv |>
     filter(x >= min_body)
   
-  # add biomass sum here? ####
+  indiv$analysis_id <- mle_res_id[i]
+  indiv <- left_join(indiv, site_info,
+                     by = "analysis_id")
+  binned$analysis_id <- mle_res_id[i]
+  binned <- left_join(binned, site_info,
+                      by = "analysis_id")
   
   bin_tibble_list[[i]] <- list(indiv = indiv,
                                binned = binned)
@@ -307,6 +312,8 @@ for(i in 1:length(mle_res_id)){
 }
 tictoc::toc()
 # 141 sec
+# with left_join message = 1655
+# without left_join message = 212
 
 names(bin_tibble_list) <- as.character(mle_res_id)
 
@@ -338,11 +345,19 @@ for(i in 1:length(mle_res_no_id)){
   
   indiv <- binned_with_peak$indiv
   
+  indiv$analysis_id <- mle_res_id[i]
+  indiv <- left_join(indiv, site_info,
+                     by = "analysis_id")
+  binned$analysis_id <- mle_res_id[i]
+  binned <- left_join(binned, site_info,
+                      by = "analysis_id")
+  
   bin_tibble_no_cutoff_list[[i]] <- list(indiv = indiv,
                                          binned = binned)
   # include biomass in list output?
 }
-tictoc::toc() # 
+tictoc::toc()
+# time = 208 sec
 
 names(bin_tibble_no_cutoff_list) <- as.character(mle_res_no_id)
 
@@ -397,171 +412,171 @@ biomass_no_cut_df <- biomass_no_cut_df %>%
 # finish this with full data ####
 # only got through testing and then got sidetracked. 
 
-mle_bin_res_df
-lines_test <- fit_one_list(dat_split[[1]])
-# df <- lines_test
-
-lines_coef <- function(min.x,
-                       max.x,
-                       MLE.b,
-                       sum_bin_counts){ # bincount norm?
-  xmin = min.x
-  xmax = max.x
-  x_plb <- exp(seq(log(xmin),
-                   log(xmax), 
-                   length = 10000))
-  
-  y_plb <- dPLB(x_plb,
-                b = MLE.b, 
-                xmin = min(x_plb),
-                xmax = max(x_plb)) * 
-    sum_bin_counts * x_plb
-  
-  coef_out <- coef(lm(y_plb ~ x_plb))
-  return(
-    #list(
-    fit = data.frame(fit_intercept = coef_out[1],
-                    fit_slope = coef_out[2],
-                    row.names = NULL)#,
-         # x_y_plb = data.frame(x_plb = x_plb,
-         #                      y_plb = y_plb))
-  )
-}
-
-lines_coef(lines_test$min.x,
-           lines_test$max.x,
-           lines_test$MLE.b,
-           lines_test$sum_bin_counts)
-
-sim_line_1 <- lines_coef(lines_test$min.x,
-                         lines_test$max.x,
-                         lines_test$MLE.b,
-                         lines_test$sum_bin_counts)
-
-sim_line_2 <- lines_coef(lines_test$min.x,
-                         lines_test$max.x,
-                         lines_test$MLE.b - 1,
-                         lines_test$sum_bin_counts)
-sim_line_3 <- lines_coef(lines_test$min.x,
-                         lines_test$max.x,
-                         lines_test$MLE.b,
-                         lines_test$sum_bin_counts + 100)
-
-sim_test <- bind_rows(sim_line_1, sim_line_2, sim_line_3)
-
-sim_test %>%
-  rowwise() %>%
-  mutate(x_y = pmap(list(min.x = lines_test$min.x,
-                         max.x = lines_test$max.x,
-                         fit_intercept,
-                         fit_slope, 
-                         n = 100),
-                    .f = x_y_lines)) %>%
-  unnest(x_y) %>%
-  ggplot(aes(x = x, y = y, group = fit_intercept, color = fit_intercept)) +
-  geom_line() +
-  # scale_x_log10() +
-  # scale_y_log10() +
-  #xlim (0, 2000) +
-  NULL
-
-lines_test_2 <- fit_one_list(dat_split[[2]])
-lines_test_3 <- fit_one_list(dat_split[[3]])
-lines_test_4 <- fit_one_list(dat_split[[4]])
-lines_test_5 <- fit_one_list(dat_split[[5]])
-
-df_test <- bind_rows(lines_test_2,
-          lines_test_3,
-          lines_test_4,
-          lines_test_5,
-          lines_test)
-
-coef_small <- df_test %>%
-  rowwise() %>%
-  mutate(coefs = pmap(list(min.x,
-                   max.x,
-                   MLE.b,
-                   sum_bin_counts),
-                    .f = lines_coef)) %>%
-  unnest(coefs)
-
-x_y_lines <- function(min.x, max.x, fit_intercept, fit_slope, n = 1000){
-  x = seq(min.x, max.x, length.out = n)
-  y = fit_intercept + x * fit_slope
-  return(data.frame(x = x, y = y))
-}
-
-# x_y_lines(coef_small[1, "min.x"],
-#           coef_small[1, "max.x"],
-#           coef_small[1, "fit_intercept"],
-#           coef_small[1, "fit_slope"])
-
-coef_small %>%
-  sample_n(10) %>%
-  rowwise() %>%
-  mutate(x_y = pmap(list(min.x,
-                         max.x,
-                         fit_intercept,
-                         fit_slope, 
-                         n = 100),
-                    .f = x_y_lines)) %>%
-  unnest(x_y) %>%
-  ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_id)) +
-  geom_line() +
-  # scale_x_log10() +
-  # scale_y_log10() +
-  #xlim (0, 2000) +
-  NULL
-
-
-coef_small <- mle_bin_res_df %>%
-  filter(!is.na(MLE.b)) %>%
-  rowwise() %>%
-  mutate(coefs = pmap(list(min.x,
-                           max.x,
-                           MLE.b,
-                           sum_bin_counts),
-                      .f = lines_coef)) %>%
-  unnest(coefs)
-
-lines_df <- coef_small %>%
-    rowwise() %>%
-    mutate(x_y = pmap(list(min.x,
-                           max.x,
-                           fit_intercept,
-                           fit_slope,
-                           n = 100),
-                      .f = x_y_lines)) %>%
-    unnest(x_y) 
-
-lines_df %>%
-  select(analysis_id, x, y) %>%
-  left_join(site_info %>%
-              select(analysis_id, analysis_group)) %>%
-  ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_group)) +
-  geom_line() +
-  # scale_y_log10() +
-  # scale_x_log10() +
-  facet_wrap(~analysis_group, scales = "free") +
-  theme_bw()
-
-# how can I extract the information to re-create the LBN plots? 
-# data in bin_tibble_list$binned
-## boxes ##
-# how to make the boxes? geom_rect, left-right = binMin Max
-# top-bottom = high and low counts??
-## lines ##
-# LBN uses dPLB() or something I think? "lines()" in base R plotting?
-
-# seq x values
-# calculate y values 
-# B.PLB <- dPLB(x.PLB, b = b.MLE, xmin = min(x.PLB), xmax = max(x.PLB)) * sum(binTibble$Number) * x.PLB
-# fit lm(B.plb ~ x.PLB)
-# extract beta_0, beta_1
-# add to df output
-# use that data frame to make vector of x-y values and plot together
-
-length(mle_res_id)
+# mle_bin_res_df
+# lines_test <- fit_one_list(dat_split[[1]])
+# # df <- lines_test
+# 
+# lines_coef <- function(min.x,
+#                        max.x,
+#                        MLE.b,
+#                        sum_bin_counts){ # bincount norm?
+#   xmin = min.x
+#   xmax = max.x
+#   x_plb <- exp(seq(log(xmin),
+#                    log(xmax), 
+#                    length = 10000))
+#   
+#   y_plb <- dPLB(x_plb,
+#                 b = MLE.b, 
+#                 xmin = min(x_plb),
+#                 xmax = max(x_plb)) * 
+#     sum_bin_counts * x_plb
+#   
+#   coef_out <- coef(lm(y_plb ~ x_plb))
+#   return(
+#     #list(
+#     fit = data.frame(fit_intercept = coef_out[1],
+#                     fit_slope = coef_out[2],
+#                     row.names = NULL)#,
+#          # x_y_plb = data.frame(x_plb = x_plb,
+#          #                      y_plb = y_plb))
+#   )
+# }
+# 
+# lines_coef(lines_test$min.x,
+#            lines_test$max.x,
+#            lines_test$MLE.b,
+#            lines_test$sum_bin_counts)
+# 
+# sim_line_1 <- lines_coef(lines_test$min.x,
+#                          lines_test$max.x,
+#                          lines_test$MLE.b,
+#                          lines_test$sum_bin_counts)
+# 
+# sim_line_2 <- lines_coef(lines_test$min.x,
+#                          lines_test$max.x,
+#                          lines_test$MLE.b - 1,
+#                          lines_test$sum_bin_counts)
+# sim_line_3 <- lines_coef(lines_test$min.x,
+#                          lines_test$max.x,
+#                          lines_test$MLE.b,
+#                          lines_test$sum_bin_counts + 100)
+# 
+# sim_test <- bind_rows(sim_line_1, sim_line_2, sim_line_3)
+# 
+# sim_test %>%
+#   rowwise() %>%
+#   mutate(x_y = pmap(list(min.x = lines_test$min.x,
+#                          max.x = lines_test$max.x,
+#                          fit_intercept,
+#                          fit_slope, 
+#                          n = 100),
+#                     .f = x_y_lines)) %>%
+#   unnest(x_y) %>%
+#   ggplot(aes(x = x, y = y, group = fit_intercept, color = fit_intercept)) +
+#   geom_line() +
+#   # scale_x_log10() +
+#   # scale_y_log10() +
+#   #xlim (0, 2000) +
+#   NULL
+# 
+# lines_test_2 <- fit_one_list(dat_split[[2]])
+# lines_test_3 <- fit_one_list(dat_split[[3]])
+# lines_test_4 <- fit_one_list(dat_split[[4]])
+# lines_test_5 <- fit_one_list(dat_split[[5]])
+# 
+# df_test <- bind_rows(lines_test_2,
+#           lines_test_3,
+#           lines_test_4,
+#           lines_test_5,
+#           lines_test)
+# 
+# coef_small <- df_test %>%
+#   rowwise() %>%
+#   mutate(coefs = pmap(list(min.x,
+#                    max.x,
+#                    MLE.b,
+#                    sum_bin_counts),
+#                     .f = lines_coef)) %>%
+#   unnest(coefs)
+# 
+# x_y_lines <- function(min.x, max.x, fit_intercept, fit_slope, n = 1000){
+#   x = seq(min.x, max.x, length.out = n)
+#   y = fit_intercept + x * fit_slope
+#   return(data.frame(x = x, y = y))
+# }
+# 
+# # x_y_lines(coef_small[1, "min.x"],
+# #           coef_small[1, "max.x"],
+# #           coef_small[1, "fit_intercept"],
+# #           coef_small[1, "fit_slope"])
+# 
+# coef_small %>%
+#   sample_n(10) %>%
+#   rowwise() %>%
+#   mutate(x_y = pmap(list(min.x,
+#                          max.x,
+#                          fit_intercept,
+#                          fit_slope, 
+#                          n = 100),
+#                     .f = x_y_lines)) %>%
+#   unnest(x_y) %>%
+#   ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_id)) +
+#   geom_line() +
+#   # scale_x_log10() +
+#   # scale_y_log10() +
+#   #xlim (0, 2000) +
+#   NULL
+# 
+# 
+# coef_small <- mle_bin_res_df %>%
+#   filter(!is.na(MLE.b)) %>%
+#   rowwise() %>%
+#   mutate(coefs = pmap(list(min.x,
+#                            max.x,
+#                            MLE.b,
+#                            sum_bin_counts),
+#                       .f = lines_coef)) %>%
+#   unnest(coefs)
+# 
+# lines_df <- coef_small %>%
+#     rowwise() %>%
+#     mutate(x_y = pmap(list(min.x,
+#                            max.x,
+#                            fit_intercept,
+#                            fit_slope,
+#                            n = 100),
+#                       .f = x_y_lines)) %>%
+#     unnest(x_y) 
+# 
+# lines_df %>%
+#   select(analysis_id, x, y) %>%
+#   left_join(site_info %>%
+#               select(analysis_id, analysis_group)) %>%
+#   ggplot(aes(x = x, y = y, group = analysis_id, color = analysis_group)) +
+#   geom_line() +
+#   # scale_y_log10() +
+#   # scale_x_log10() +
+#   facet_wrap(~analysis_group, scales = "free") +
+#   theme_bw()
+# 
+# # how can I extract the information to re-create the LBN plots? 
+# # data in bin_tibble_list$binned
+# ## boxes ##
+# # how to make the boxes? geom_rect, left-right = binMin Max
+# # top-bottom = high and low counts??
+# ## lines ##
+# # LBN uses dPLB() or something I think? "lines()" in base R plotting?
+# 
+# # seq x values
+# # calculate y values 
+# # B.PLB <- dPLB(x.PLB, b = b.MLE, xmin = min(x.PLB), xmax = max(x.PLB)) * sum(binTibble$Number) * x.PLB
+# # fit lm(B.plb ~ x.PLB)
+# # extract beta_0, beta_1
+# # add to df output
+# # use that data frame to make vector of x-y values and plot together
+# 
+# length(mle_res_id)
 
 # save outputs ####
 # mle bin results dataframe
@@ -587,223 +602,243 @@ saveRDS(biomass_no_cut_df,
         "derived_data/sum_no_cutoff_biomass_df.RDS")
 #
 
-# to do list july 2024 ----------------------------------------------------
 
-# why are some collections not fitting?
+# #biomass_df sums make sense?
+# biomass_df %>%
+#   group_by(group_id) %>%
+#   count() %>%
+#   filter(n > 2)
+# 
+# biomass_df |>
+#   filter(group_id == 15675)
+# 
+# biomass_no_cut_df %>%
+#   group_by(group_id) %>%
+#   count() %>%
+#   filter(n > 2)
+# 
+# biomass_no_cut_df |>
+#   filter(group_id == 15675)
+# delete following? ####
+# pretty sure these are old notes to myself. 
 
-mle_bin_res_df %>%
-  filter(is.na(MLE.b)) %>%
-  pull(group_id)
-
-
-
-# possibly with error return ----------------------------------------------------
-
-possibly2 <- function (.f) {
-  .f <- as_mapper(.f)
-  function(...) {
-    tryCatch(.f(...), error = function(e)  e$message)
-  }
-}
-
-# make a vector of just NA groups
-na_groups <- mle_bin_res_df %>%
-  filter(is.na(MLE.b)) %>%
-  pull(group_id)
-
-dat_na <- raw_simp %>%
-  filter(group_id %in% na_groups) 
-dim(raw_simp)
-dim(dat_na)
-dat_na <- dat_na %>%
-  split(dat_na$group_id)
-length(dat_na)
-
-tictoc::tic()
-plan(cluster, workers = 10)
-
-vecDiff = 2 # bigger = more estimates, but huge CI's
-# 2 = 57 seconds
-
-na_bin <- dat_na |>
-  future_map(possibly2(function(.data){
-    fit_one_list(.data, vecDiff = vecDiff)  }
-  )
-  )
-
-plan(cluster, workers = 1)
-tictoc::toc()
-
-#na_bin[[1]] %>% class()
-
-
-na_bin_res_df <- bind_rows(lapply(na_bin, as.data.frame), .id = "id")
-# View(na_bin_res_df)
-# nrow(na_bin_res_df)
+# # to do list july 2024 ----------------------------------------------------
+# 
+# # why are some collections not fitting?
+# 
+# mle_bin_res_df %>%
+#   filter(is.na(MLE.b)) %>%
+#   pull(group_id)
+# 
+# 
+# 
+# # possibly with error return ----------------------------------------------------
+# 
+# possibly2 <- function (.f) {
+#   .f <- as_mapper(.f)
+#   function(...) {
+#     tryCatch(.f(...), error = function(e)  e$message)
+#   }
+# }
+# 
+# # make a vector of just NA groups
+# na_groups <- mle_bin_res_df %>%
+#   filter(is.na(MLE.b)) %>%
+#   pull(group_id)
+# 
+# dat_na <- raw_simp %>%
+#   filter(group_id %in% na_groups) 
+# dim(raw_simp)
+# dim(dat_na)
+# dat_na <- dat_na %>%
+#   split(dat_na$group_id)
+# length(dat_na)
+# 
+# tictoc::tic()
+# plan(cluster, workers = 10)
+# 
+# vecDiff = 2 # bigger = more estimates, but huge CI's
+# # 2 = 57 seconds
+# 
+# na_bin <- dat_na |>
+#   future_map(possibly2(function(.data){
+#     fit_one_list(.data, vecDiff = vecDiff)  }
+#   )
+#   )
+# 
+# plan(cluster, workers = 1)
+# tictoc::toc()
+# 
+# #na_bin[[1]] %>% class()
+# 
+# 
+# na_bin_res_df <- bind_rows(lapply(na_bin, as.data.frame), .id = "id")
+# # View(na_bin_res_df)
+# # nrow(na_bin_res_df)
+# # 
+# # na_bin_res_df %>%
+# #   filter(is.na(MLE.b)) %>%
+# #   nrow()
+# # 
+# # names(na_bin_res_df)
+# # head(na_bin_res_df)
+# 
+# na_bin_res_df <- na_bin_res_df %>%
+#   rename(error = "X[[i]]")
 # 
 # na_bin_res_df %>%
-#   filter(is.na(MLE.b)) %>%
-#   nrow()
+#   group_by(error) %>%
+#   count()
 # 
-# names(na_bin_res_df)
-# head(na_bin_res_df)
+# na_bin_res_df %>%
+#   filter(str_detect(error, "sum"))
+# 
+# na_bin_res_df %>%
+#   filter(str_detect(error, "sum"))
+# 
 
-na_bin_res_df <- na_bin_res_df %>%
-  rename(error = "X[[i]]")
-
-na_bin_res_df %>%
-  group_by(error) %>%
-  count()
-
-na_bin_res_df %>%
-  filter(str_detect(error, "sum"))
-
-na_bin_res_df %>%
-  filter(str_detect(error, "sum"))
-
-
-# looking at errors one by one --------------------------------------------
-
-
-
+# # looking at errors one by one --------------------------------------------
+# 
+# 
+# 
 # raw_simp_this_id <- dat_split[["12333"]]
-
-# group_id before filtering out small rows
-dat_split[["65"]]
-# only one row of data
-dat_split[["84"]]
-# only three rows of data
-dat_split[["86"]]
-# 40 rows of data, error, need to make vecDiff larger
-dat_split[["90"]]
-# 16 rows of data, error, need to make vecDiff larger
-
-dat_split[["9697"]]
-# make vecDiff larger
-
-
-dat_split[["10018"]]
-# error in combine_bins
-# only ~ 3 bins after peak
-dat_split[["12335"]]
-# error in combine_bins
-# only ~ 4 bins after peak
-
-dat_split[["12333"]]
-# GoF_res_K2 NaNs produced
-
-
-# running functions one by one --------------------------------------------
-
-
-suppress.warnings = TRUE
-counts <- dplyr::select(raw_simp_this_id,
-                        x = body_mass,
-                        counts = ind_n)
-
-# Prob has a peak. If first index is peak then still good.
-binned_with_peak <- bin_data(counts,
-                             binWidth = "2k")
-
-index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
-
-binned <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
-
-# Note binned is just the tibble, shortened versino of
-# binned_with_peak$binVals, as we don't need $indiv for calcs.
-
-num.bins <- nrow(binned)
-
-# bin breaks are the minima plus the max of the final bin:
-binBreaks <- c(dplyr::pull(binned, binMin),
-               dplyr::pull(binned, binMax)[num.bins])
-
-binCounts <- dplyr::pull(binned,
-                         binCount)
-
-MLEbin.res <-  calcLike(negLL.PLB.binned,
-                        p = -1.5,
-                        w = binBreaks,
-                        d = binCounts,
-                        J = length(binCounts),   # = num.bins
-                        vecDiff = vecDiff,
-                        suppress.warnings = suppress.warnings)             # increase this if hit a bound
-
-GoF_res_K1 <- GoF_PLB(bin_breaks = binBreaks,
-                      bin_counts = binCounts,
-                      b = MLEbin.res$MLE,
-                      K = 1)
-
-GoF_res_K2 <- GoF_PLB(bin_breaks = binBreaks,
-                      bin_counts = binCounts,
-                      b = MLEbin.res$MLE,
-                      K = 2)
-
-
-
-# running combined bins line by line --------------------------------------
-
-combine_bins <- function(binBreaks,
-                         binCounts,
-                         minCounts = 5){
-  stopifnot(length(binBreaks) == length(binCounts) + 1)
-  stopifnot(sum(binCounts) >= minCounts)
-  
-  # Check each in turn, combine with subsequent one if binCounts[i] is < minCounts:
-  combined_breaks <- vector()
-  combined_counts <- vector()
-  
-  combined_counts_i <- 1      # counter for combined_counts vector
-  combined_breaks[1] <- binBreaks[1]
-  
-  i <- 1                      # counter for binCounts
-  while(i <= length(binCounts)){
-    if(binCounts[i] >= minCounts){
-      combined_counts[combined_counts_i] <- binCounts[i]
-      combined_breaks[combined_counts_i + 1] <- binBreaks[i + 1]
-      combined_counts_i <- combined_counts_i + 1
-      i <- i + 1
-    } else {
-      # Combine the next bins to get >=5 total count
-      cumul <- cumsum(binCounts[i:length(binCounts)])
-      if(max(cumul) >= minCounts){
-        first_to_five <- min(which(cumul >= minCounts))  # first index of remaining counts
-        #  to have cumulative count of
-        #  >= minCounts (default 5,
-        #  hence first_to_five),
-        #  will be index >=2
-        
-      } else {
-        first_to_five <- length(cumul)           # just take them all and fix afterwards
-      }
-      
-      combined_counts[combined_counts_i] <- cumul[first_to_five]
-      combined_breaks[combined_counts_i + 1] <- binBreaks[i + first_to_five]  # TODO CHECK THAT, may
-      # be off by 1
-      combined_counts_i <- combined_counts_i + 1
-      i <- i + first_to_five
-    }
-  }
-  
-  # But count in final bin may be <5, if so then combine with penultimate bin
-  # (which should be >=5 by definition)
-  M = length(combined_counts)
-  if(combined_counts[M] < minCounts){
-    combined_counts[M-1] <- combined_counts[M-1] + combined_counts[M]
-    combined_counts <- combined_counts[-M]
-    combined_breaks <- combined_breaks[-M]
-  }
-  
-  stopifnot(sum(combined_counts) == sum(binCounts))
-  
-  return(list(combined_breaks = combined_breaks,
-              combined_counts = combined_counts))
-}
-
-
-
-
-fit_one_list(dat_split[["1"]], vecDiff = 10, suppress.warnings = TRUE)
+# 
+# # group_id before filtering out small rows
+# dat_split[["65"]]
+# # only one row of data
+# dat_split[["84"]]
+# # only three rows of data
+# dat_split[["86"]]
+# # 40 rows of data, error, need to make vecDiff larger
+# dat_split[["90"]]
+# # 16 rows of data, error, need to make vecDiff larger
+# 
+# dat_split[["9697"]]
+# # make vecDiff larger
+# 
+# 
+# dat_split[["10018"]]
+# # error in combine_bins
+# # only ~ 3 bins after peak
+# dat_split[["12335"]]
+# # error in combine_bins
+# # only ~ 4 bins after peak
+# 
+# dat_split[["12333"]]
+# # GoF_res_K2 NaNs produced
+# 
+# 
+# # running functions one by one --------------------------------------------
+# 
+# 
+# suppress.warnings = TRUE
+# counts <- dplyr::select(raw_simp_this_id,
+#                         x = body_mass,
+#                         counts = ind_n)
+# 
+# # Prob has a peak. If first index is peak then still good.
+# binned_with_peak <- bin_data(counts,
+#                              binWidth = "2k")
+# 
+# index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
+# 
+# binned <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
+# 
+# # Note binned is just the tibble, shortened versino of
+# # binned_with_peak$binVals, as we don't need $indiv for calcs.
+# 
+# num.bins <- nrow(binned)
+# 
+# # bin breaks are the minima plus the max of the final bin:
+# binBreaks <- c(dplyr::pull(binned, binMin),
+#                dplyr::pull(binned, binMax)[num.bins])
+# 
+# binCounts <- dplyr::pull(binned,
+#                          binCount)
+# 
+# MLEbin.res <-  calcLike(negLL.PLB.binned,
+#                         p = -1.5,
+#                         w = binBreaks,
+#                         d = binCounts,
+#                         J = length(binCounts),   # = num.bins
+#                         vecDiff = vecDiff,
+#                         suppress.warnings = suppress.warnings)             # increase this if hit a bound
+# 
+# GoF_res_K1 <- GoF_PLB(bin_breaks = binBreaks,
+#                       bin_counts = binCounts,
+#                       b = MLEbin.res$MLE,
+#                       K = 1)
+# 
+# GoF_res_K2 <- GoF_PLB(bin_breaks = binBreaks,
+#                       bin_counts = binCounts,
+#                       b = MLEbin.res$MLE,
+#                       K = 2)
+# 
+# 
+# 
+# # running combined bins line by line --------------------------------------
+# 
+# combine_bins <- function(binBreaks,
+#                          binCounts,
+#                          minCounts = 5){
+#   stopifnot(length(binBreaks) == length(binCounts) + 1)
+#   stopifnot(sum(binCounts) >= minCounts)
+#   
+#   # Check each in turn, combine with subsequent one if binCounts[i] is < minCounts:
+#   combined_breaks <- vector()
+#   combined_counts <- vector()
+#   
+#   combined_counts_i <- 1      # counter for combined_counts vector
+#   combined_breaks[1] <- binBreaks[1]
+#   
+#   i <- 1                      # counter for binCounts
+#   while(i <= length(binCounts)){
+#     if(binCounts[i] >= minCounts){
+#       combined_counts[combined_counts_i] <- binCounts[i]
+#       combined_breaks[combined_counts_i + 1] <- binBreaks[i + 1]
+#       combined_counts_i <- combined_counts_i + 1
+#       i <- i + 1
+#     } else {
+#       # Combine the next bins to get >=5 total count
+#       cumul <- cumsum(binCounts[i:length(binCounts)])
+#       if(max(cumul) >= minCounts){
+#         first_to_five <- min(which(cumul >= minCounts))  # first index of remaining counts
+#         #  to have cumulative count of
+#         #  >= minCounts (default 5,
+#         #  hence first_to_five),
+#         #  will be index >=2
+#         
+#       } else {
+#         first_to_five <- length(cumul)           # just take them all and fix afterwards
+#       }
+#       
+#       combined_counts[combined_counts_i] <- cumul[first_to_five]
+#       combined_breaks[combined_counts_i + 1] <- binBreaks[i + first_to_five]  # TODO CHECK THAT, may
+#       # be off by 1
+#       combined_counts_i <- combined_counts_i + 1
+#       i <- i + first_to_five
+#     }
+#   }
+#   
+#   # But count in final bin may be <5, if so then combine with penultimate bin
+#   # (which should be >=5 by definition)
+#   M = length(combined_counts)
+#   if(combined_counts[M] < minCounts){
+#     combined_counts[M-1] <- combined_counts[M-1] + combined_counts[M]
+#     combined_counts <- combined_counts[-M]
+#     combined_breaks <- combined_breaks[-M]
+#   }
+#   
+#   stopifnot(sum(combined_counts) == sum(binCounts))
+#   
+#   return(list(combined_breaks = combined_breaks,
+#               combined_counts = combined_counts))
+# }
+# 
+# 
+# 
+# 
+# fit_one_list(dat_split[["1"]], vecDiff = 10, suppress.warnings = TRUE)
 
 # old code from Perkins: --------------------------------------------------
 
