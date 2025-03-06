@@ -94,7 +94,7 @@ for (i in 1:length(brm)){
     mutate(ind_n = 1) %>% 
     tidybayes::add_epred_draws(brm[[i]], re_formula = NULL) 
   posts_out$group_id <- names(brm)[i]
-  posts_out$n_obs_dat <- nrow(brm[[i]]$data)
+  #posts_out$n_obs_dat <- nrow(brm[[i]]$data)
   posts_seq[[i]] <- posts_out
 }
 tictoc::toc() # something like 360 seconds with workers = 15
@@ -107,15 +107,18 @@ posts <- bind_rows(posts_seq)
 
 posts <- left_join(posts,
                    dat %>%
-                     group_by(group_id,
-                                    dat_id,
-                                    geographical_latitude,
-                                    organism_groups) %>%
-                     summarize(n = n(),
-                               sum_ind = sum(ind_n)) %>%
-                     mutate(n_obs_dat = case_when(
-                       sum_ind > n ~ sum_ind,
-                       n > sum_ind ~ n)) %>%
+                     group_by(
+                       group_id,
+                       dat_id,
+                       geographical_latitude,
+                       organism_groups) %>%
+                     summarize(
+                       n = n(),
+                       sum_ind = sum(ind_n)) %>%
+                     mutate(
+                       n_obs_dat = case_when(
+                         sum_ind > n ~ sum_ind,
+                         n > sum_ind ~ n)) %>%
                      ungroup() %>%
                      select(-n, -sum_ind),
                    by = "group_id")
@@ -123,6 +126,9 @@ posts <- left_join(posts,
 
 
 dim(posts) # 10.2 million rows
+names(posts)
+saveRDS(posts, "results/brm_posts_2024-03-05.rds")
+
 
 # check NEON to see if it "looks right"
 # make sure to use group = group_id ####
@@ -308,25 +314,32 @@ ci_posts
 ci_posts %>%
   ungroup() %>%
   select(group_id, dat_id, width) %>%
-  filter(width <=2)
+  filter(width <=2) %>%
+  nrow()
 # 774 groups
 
 ci_posts %>%
   ungroup() %>%
   select(group_id, dat_id, width) %>%
-  filter(width <=1)
+  filter(width <=1) %>%
+  nrow()
+
 # 610
 
 ci_posts %>%
   ungroup() %>%
   select(group_id, dat_id, width) %>%
-  filter(width <=0.5)
+  filter(width <=0.5) %>%
+  nrow()
+
 # 558
 
 ci_posts %>%
   ungroup() %>%
   select(group_id, dat_id, width) %>%
-  filter(width <0.96)
+  filter(width <0.96) %>%
+  nrow()
+
 # 615 --> matches MLE count with vec diff 0.5
 
 # ci_posts %>%
@@ -373,6 +386,19 @@ ci_posts %>%
   geom_pointrange() +
   #scale_x_log10() +
   facet_wrap(~organism_groups, scales = "free") +
+  NULL
+
+ci_posts %>%
+  filter(width <0.96) %>%
+  ggplot(aes(x = abs(geographical_latitude),
+             y = median,
+             ymin = l95,
+             ymax = u95,
+             group = group_id,
+             color = organism_groups)) +
+  geom_pointrange() +
+  #scale_x_log10() +
+  #facet_wrap(~organism_groups, scales = "free") +
   NULL
 
 ci_posts %>%
@@ -496,6 +522,8 @@ for (i in 1:length(brm)){
 }
 tictoc::toc()
 sample_gm <- bind_rows(sample_gm_list)
+names(sample_gm)
+saveRDS(sample_gm, "results/sample_gm.rds")
 
 # sample yrep from posterior
 post_gm <- posts %>%
@@ -604,7 +632,7 @@ post_gm_summary %>%
   filter(group_id %in% wide_fish_groups) %>%
   ggplot(aes(x = sample_id_ordered, y = gm)) +
   stat_pointinterval(alpha = 0.5,
-                     size = 0.2,
+                     size = 1,
                      aes(color = "Posterior Predictive",
                          shape = "Posterior Predictive")) +
   scale_y_log10() +
@@ -612,7 +640,7 @@ post_gm_summary %>%
                filter(group_id %in% wide_fish_groups) %>%
                left_join(reorder_ids), 
              aes(y = gm, color = "Raw Data", shape = "Raw Data"),
-             size = 1) +
+             size = 2) +
   guides(fill = "none") +
   guides(shape = "none") +
   scale_color_manual(values = c("#56b4e9", "black"))

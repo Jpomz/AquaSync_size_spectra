@@ -7,11 +7,9 @@ library(tidyverse)
 library(furrr)
 library(sizeSpectra)
 
-dat <- readRDS("derived_data/filtered_size_jan-11.RDS")%>%
-  group_by(dat_id, site) %>%
-  mutate(xmin = min(body_mass),
-         xmax = max(body_mass),
-         group_id = cur_group_id())
+dat <- readRDS("derived_data/filtered_size_2024-02-07.RDS")
+names(dat)
+
 
 # filtered_vector <- c(
 #   "df_NEON.xlsx",
@@ -75,7 +73,7 @@ nrow_dat_split <- dat_split %>%
 
 plan(cluster, workers = 10)
 
-vecDiff = 0.5 # bigger = more estimates, but huge CI's
+vecDiff = 10 # bigger = more estimates, but huge CI's
 
 mle_start <- Sys.time()
 mle_count <- dat_split |>
@@ -113,11 +111,15 @@ for (i in 1:length(mle_count)){
 mle_count_results <- bind_rows(mle_count_rows) %>%
   mutate(group_id = as.numeric(group_id)) %>%
   left_join(dat %>%
-              select(dat_id, site, group_id) %>%
+              select(dat_id,
+                     site, 
+                     geographical_latitude,
+                     organism_groups) %>%
               unique())
 
 # add nrow to results data frame
-mle_count_results$nrow_dat_split <- nrow_dat_split
+# mle_count_results$nrow_dat_split <- nrow_dat_split
+# two latitudes for groupd_id == 13542
 
 # total rows
 mle_count_results %>%
@@ -129,7 +131,8 @@ mle_count_results %>%
   nrow()
 # 134/2659
 #~5% data with no mle estimate
+# when vecdiff = 10 --> 54/2659 => ~2% of data has no estimate
 
 
-saveRDS(mle_run, paste0("results/mle_run_", Sys.Date(), ".rds"))
+#saveRDS(mle_run, paste0("results/mle_run_", Sys.Date(), ".rds"))
 saveRDS(mle_count_results, paste0("results/mle_count_vecDiff-", vecDiff, "_", Sys.Date(),".rds"))

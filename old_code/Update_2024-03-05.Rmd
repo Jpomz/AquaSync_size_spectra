@@ -1,0 +1,323 @@
+---
+title: "Aqua sync isd update"
+author: "Justin Pomeranz"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# `isdbayes` estimates  
+
+## Setup
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(brms)
+library(tidybayes)
+library(isdbayes)
+
+dat <- readRDS("derived_data/filtered_size_2024-02-07.RDS")
+dat <- dat %>%
+  mutate(group_id = as.character(group_id))
+
+posts <- readRDS("results/brm_posts_2024-03-05.rds")
+sample_gm <- readRDS("results/sample_gm.rds")
+
+```
+
+
+## Load model fits
+
+## Posterior draws  
+
+
+```{r}
+# CI for posterior draws ####
+head(posts)
+```
+
+## Credible Intervals of Posterior draws  
+
+
+```{r, warning=FALSE, message=FALSE}
+ci_posts <- posts %>%
+  group_by(group_id,
+           dat_id,
+           geographical_latitude,
+           organism_groups,
+           n_obs_dat,
+           xmin, 
+           xmax) %>%
+  summarize(
+    median = median(.epred),
+    l95 = quantile(.epred, probs = 0.025),
+    u95 = quantile(.epred,  probs = 0.975)) %>%
+  mutate(width = abs(l95 - u95),
+         size_range = log10(xmax) - log10(xmin))
+
+ci_posts
+```
+
+
+### How many "sites" with arbitrary CrI widths?  
+```{r}
+# ci_posts widths ####
+ci_posts %>%
+  ungroup() %>%
+  select(group_id, dat_id, width) %>%
+  filter(width <=2) %>%
+  nrow()
+# 774 groups
+
+ci_posts %>%
+  ungroup() %>%
+  select(group_id, dat_id, width) %>%
+  filter(width <=1) %>%
+  nrow()
+
+# 620
+
+ci_posts %>%
+  ungroup() %>%
+  select(group_id, dat_id, width) %>%
+  filter(width <=0.5) %>%
+  nrow()
+
+# 558
+
+ci_posts %>%
+  ungroup() %>%
+  select(group_id, dat_id, width) %>%
+  filter(width <0.96) %>%
+  nrow()
+
+# 615 --> matches MLE count with vec diff 0.5
+```
+
+## PLots of CrI across latitudes  
+
+```{r, warning=FALSE, message=FALSE}
+ci_posts %>%
+  ggplot(aes(x = abs(geographical_latitude),
+             y = median,
+             ymin = l95,
+             ymax = u95,
+             group = group_id,
+             color = organism_groups)) +
+  geom_pointrange() +
+  labs(title = "All estimates and 95% CrI") +
+  #scale_x_log10() +
+  #facet_wrap(~organism_groups, scales = "free") +
+  NULL
+
+ci_posts %>%
+  ggplot(aes(x = abs(geographical_latitude),
+             y = median,
+             ymin = l95,
+             ymax = u95,
+             group = group_id,
+             color = organism_groups)) +
+  geom_pointrange() +
+  labs(title = "All estimates and 95% CrI; facetted by organism groups") +
+  #scale_x_log10() +
+  facet_wrap(~organism_groups, scales = "free") +
+  theme(legend.position = "none") +
+  NULL
+
+ci_posts %>%
+  filter(width <1) %>%
+  ggplot(aes(x = abs(geographical_latitude),
+             y = median,
+             ymin = l95,
+             ymax = u95,
+             group = group_id,
+             color = organism_groups)) +
+  geom_pointrange() +
+  labs(title = "Estimates with 95% CrI < 1") +
+  #scale_x_log10() +
+  #facet_wrap(~organism_groups, scales = "free") +
+  NULL
+
+```
+
+
+# Bayesian Summary Statistics  
+
+```{r warning=FALSE, message=FALSE}
+# sample yrep from posterior
+n_pred = 500
+post_gm <- posts %>%
+  filter(.draw <= 100) %>%
+  select(xmin, xmax, group_id, .epred, .draw) %>%
+  expand_grid(individual = 1:n_pred) %>% 
+  ungroup()  %>% 
+  mutate(
+    yrep = rparetocounts(nrow(.),
+                         lambda = .epred,
+                         xmin = xmin,
+                         xmax = xmax))
+
+reorder_ids = sample_gm %>% 
+  ungroup() %>% 
+  #group_by(group_id) %>% 
+  #reframe(rank_gm = exp(mean(log(yrep)))) %>% 
+  arrange(gm) %>% 
+  mutate(sample_id_ordered = 1:nrow(.)) %>%
+  select(group_id, sample_id_ordered)
+
+post_gm_summary <- post_gm %>%
+  group_by(group_id, xmin, xmax, .draw) %>%
+  reframe(gm = exp(mean(log(yrep))),
+          median_dw = median(yrep)) %>% 
+  left_join(reorder_ids)
+
+```
+
+## Posterior Prediction of Geometric Mean body size  
+
+```{r warning=FALSE, message=FALSE}
+post_gm_summary %>% 
+  ggplot(aes(x = sample_id_ordered, y = gm)) +
+  stat_pointinterval(alpha = 0.5,
+                     size = 0.2,
+                     aes(color = "Posterior Predictive",
+                         shape = "Posterior Predictive")) +
+  scale_y_log10() +
+  geom_point(data = sample_gm %>% 
+               left_join(reorder_ids), 
+             aes(y = gm, color = "Raw Data", shape = "Raw Data"),
+             size = 1) +
+  guides(fill = "none") +
+  guides(shape = "none") +
+  scale_color_manual(values = c("#56b4e9", "black")) +
+  labs(x = "Rank GM body size",
+       y = "Geometric mean body size (mgDM)") +
+  guides(color = guide_legend(override.aes = list(shape = c(16, 17)),
+                              title = "")) +
+  #theme(legend.position = c(0.2, 0.95)) +
+  NULL
+
+post_gm_summary %>% 
+  left_join(dat %>%
+              distinct(group_id,
+                       dat_id,
+                       geographical_latitude,
+                       organism_groups)) %>%
+  ggplot(aes(x = sample_id_ordered, y = gm)) +
+  stat_pointinterval(alpha = 0.5,
+                     size = 0.2,
+                     aes(color = "Posterior Predictive",
+                         shape = "Posterior Predictive")) +
+  scale_y_log10() +
+  geom_point(data = sample_gm %>% 
+               left_join(reorder_ids) %>%
+               left_join(dat %>%
+                           distinct(group_id,
+                                    dat_id,
+                                    geographical_latitude,
+                                    organism_groups)), 
+             aes(y = gm,
+                 color = organism_groups,
+                 shape = "Raw Data"),
+             size = 1) +
+  guides(fill = "none") +
+  guides(shape = "none") +
+  #scale_color_manual(values = c("#56b4e9", "black")) +
+  labs(x = "Rank GM body size",
+       y = "Geometric mean body size (mgDM)") +
+  # guides(color = guide_legend(override.aes = list(shape = c(16, 17)),
+  #                            title = "")) +
+  facet_wrap(~organism_groups,
+             scales = "free") +
+  #theme(legend.position = c(0.2, 0.95)) +
+  NULL
+```
+
+
+## Explore random subset of "wide" fish fits  
+
+```{r warning=FALSE, message=FALSE}
+wide_fish_groups <- post_gm_summary %>% 
+  left_join(dat %>%
+              distinct(group_id,
+                       dat_id,
+                       organism_groups)) %>%
+  filter(organism_groups == "Fish",
+         sample_id_ordered > 1500) %>%
+  sample_n(100) %>% 
+  pull(group_id)
+
+post_gm_summary %>% 
+  filter(group_id %in% wide_fish_groups) %>%
+  ggplot(aes(x = sample_id_ordered, y = gm)) +
+  stat_pointinterval(alpha = 0.5,
+                     size = 0.2,
+                     aes(color = "Posterior Predictive",
+                         shape = "Posterior Predictive")) +
+  scale_y_log10() +
+  geom_point(data = sample_gm %>% 
+               filter(group_id %in% wide_fish_groups) %>%
+               left_join(reorder_ids), 
+             aes(y = gm, color = "Raw Data", shape = "Raw Data"),
+             size = 1) +
+  guides(fill = "none") +
+  guides(shape = "none") +
+  scale_color_manual(values = c("#56b4e9", "black"))
+
+posts %>% 
+  filter(group_id %in% wide_fish_groups) %>%
+  ggplot(aes(x = abs(geographical_latitude),
+             group = group_id,
+             y = .epred)) +
+  stat_pointinterval(alpha = 0.5,
+                     size = 0.2) +
+  labs(y = "lambda; 95% CrI")
+```
+
+# MLE Count  
+
+```{r}
+mle_count <- readRDS("results/mle_count_vecDiff-0.5_2024-03-01.rds")
+
+mle_count %>%
+  filter(!is.na(mle_estimate)) %>%
+  nrow()
+
+mle_count %>%
+  filter(!is.na(mle_estimate)) %>%
+  nrow() / nrow(mle_count)
+```
+
+Only 615 ~ 24% of data has estimates
+When I change the `bvec = ` argument, we get more, but increase in CI widths. 
+
+```{r warning=FALSE, message=FALSE}
+
+mle_count$group_id <- as.character(mle_count$group_id)
+mle_lat <- left_join(
+  mle_count,
+  dat %>%
+    distinct(group_id,
+             dat_id,
+             geographical_latitude,
+             organism_groups))
+
+ggplot(mle_lat,
+       aes(
+         x = abs(geographical_latitude),
+         group = group_id,
+         color = organism_groups,
+         y = mle_estimate,
+         ymin = conf_lo,
+         ymax = conf_hi,
+         )) +
+  geom_pointrange() +
+  labs(y = "lambda",
+       x = "Absolute latitude",
+       title = "MLECount estimate")
+```
+

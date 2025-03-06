@@ -154,6 +154,9 @@ dat_df <- dat_df %>%
   group_by(dat_id, site) %>%
   mutate(group_id = cur_group_id()) 
 
+names(dat_df)
+# save data before any filtering
+saveRDS(dat_df, "derived_data/all_size_stitched_no_filtering.RDS")
 
 # remove NA body_weight_units 
 dat_df <- dat_df %>%
@@ -245,11 +248,11 @@ dat_df %>%
 # 6815 sites
 
 dat_df %>%
-  group_by(group_id) %>%
+  group_by(group_id) %>% # 14,171 sites
   summarise(n = n()) %>%
   filter(n > 100)
 # sites with n > 100
-# 6599 sites
+# 6598 sites
 
 
 

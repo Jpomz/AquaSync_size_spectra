@@ -102,6 +102,7 @@ plan(multisession, workers = 5) # full data, 1c 10 i = 9.318 minutes
 # # keep getting errors 'attempting to set up 4 local hosts with only 1 core available
 
 # prior ####
+# Re-set to Pomeranz et al. ?
 bprior <- c(prior(normal(-1.3,0.4), class = Intercept))
 
 # dummy model, plan(multisession, workers = 4), just one data set
