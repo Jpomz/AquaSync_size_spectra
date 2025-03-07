@@ -340,3 +340,253 @@ fit_one_list <- function(raw_simp,
     consistent.k2 = result$GoF_K2$consistent)
   return(s.out)
 }
+
+
+# bin_tibbles ####
+ bin_tibbles <- function(raw_simp){
+  
+  # for testing purposes
+  # raw_simp <- dat_split$'7'
+  raw_simp_this_id <- raw_simp %>%
+    dplyr::arrange(body_mass)
+  
+  counts <- dplyr::select(raw_simp_this_id,
+                          x = body_mass,
+                          counts = ind_n)
+  
+  # Prob has a peak. If first index is peak then still good.
+  binned_with_peak <- bin_data(counts,
+                               binWidth = "2k")
+  
+  # number of bins which have counts in them
+  num_bins_peak <- binned_with_peak$binVals |>
+    filter(binCount >= 1) |>
+    count() |>
+    pull()
+  
+  binned_with_peak$binVals$num_bins <- num_bins_peak
+  
+  # biomass with peak
+  sum_biomass_peak <- sum(binned_with_peak$indiv$x * binned_with_peak$indiv$counts)
+  
+  # add analysis id to tibbles
+  binned_with_peak$indiv$analysis_id = unique(raw_simp_this_id$analysis_id)
+  binned_with_peak$binVals$analysis_id = unique(raw_simp_this_id$analysis_id)
+  # make biomass a df with analysis_id
+  sum_biomass_peak <- data.frame(
+    analysis_id = unique(raw_simp_this_id$analysis_id),
+    biomass = sum_biomass_peak
+  )
+  
+  peak_out <- list(indiv = binned_with_peak$indiv,
+                   binVals = binned_with_peak$binVals,
+                   biomass = sum_biomass_peak)
+  # calculate the "peak" in the binned data
+  index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
+  
+  # binned with peak removed
+  binned_no_peak <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
+  min_body <- binned_no_peak$binMin[1]
+  
+  num_bins_no_peak <- binned_no_peak |>
+    filter(binCount >= 1) |>
+    count() |>
+    pull()
+  
+  binned_no_peak$num_bins <- num_bins_no_peak
+  
+  
+  indiv_no_peak <- binned_with_peak$indiv |>
+    filter(x >= min_body)
+
+  sum_biomass_no_peak <- sum(indiv_no_peak$x * indiv_no_peak$counts)
+  
+  sum_biomass_no_peak <- data.frame(
+    analysis_id = unique(raw_simp_this_id$analysis_id),
+    biomass = sum_biomass_no_peak
+  )
+  
+  # add analysis id to tibbles
+  indiv_no_peak$analysis_id = unique(raw_simp_this_id$analysis_id)
+  binned_no_peak$analysis_id = unique(raw_simp_this_id$analysis_id)
+  
+  no_peak_out <- list(indiv = indiv_no_peak,
+                      binVals = binned_no_peak,
+                      biomasss = sum_biomass_no_peak)
+  
+  out <- list(cut = no_peak_out,
+              no_cut = peak_out)
+  
+  return(out)
+  }
+
+ 
+# mle from tibbles ####
+ mle_from_cut_tibbles <- function(input_dat, # list with no/cut bins
+                              vecDiff = 1,
+                              suppress.warnings = TRUE){
+   
+   bin_dat <- input_dat$cut
+   # for testing purposes
+   # bin_dat <- binned_tibbles[[7]]
+   # bin_dat <- binned_tibbles[[65]] # doesn't fit
+   
+   # get the number of bins
+   num_bins_no_peak <- unique(bin_dat$binVals$num_bins)
+   
+   
+   # Results for no peak ####
+   # bin breaks are the minima plus the max of the final bin:
+   binBreaks_no_peak <- c(dplyr::pull(bin_dat$binVals, binMin),
+                          dplyr::pull(bin_dat$binVals, binMax)[num_bins_no_peak])
+   
+   binCounts_no_peak <- dplyr::pull(bin_dat$binVals,
+                                    binCount)
+   
+   MLEbin.res_no_peak <-  calcLike(negLL.PLB.binned,
+                                   p = -1.5,
+                                   w = binBreaks_no_peak,
+                                   d = binCounts_no_peak,
+                                   J = length(binCounts_no_peak),   # = num.bins
+                                   vecDiff = vecDiff,
+                                   suppress.warnings = suppress.warnings)             # increase this if hit a bound
+   
+   result_ok <- !is.character(MLEbin.res_no_peak)
+   
+   if(result_ok == TRUE){
+   GoF_res_K1_no_peak <- GoF_PLB(bin_breaks = binBreaks_no_peak,
+                                 bin_counts = binCounts_no_peak,
+                                 b = MLEbin.res_no_peak$MLE,
+                                 K = 1)
+   
+   GoF_res_K2_no_peak <- GoF_PLB(bin_breaks = binBreaks_no_peak,
+                                 bin_counts = binCounts_no_peak,
+                                 b = MLEbin.res_no_peak$MLE,
+                                 K = 2)
+   
+  
+   s.out_no_peak <- data.frame(
+     analysis_id = unique(bin_dat$biomass$analysis_id),
+     #site_date = unique(raw_simp_this_id$site_date),
+     min.x = min(bin_dat$indiv$x), # change to binned$indiv
+     max.x = max(bin_dat$indiv$x),
+     n = length(bin_dat$indiv$x),
+     sum_bin_counts = sum(bin_dat$binVals$binCount),
+     MLE.b = MLEbin.res_no_peak$MLE,
+     MLE.b.l.ci =  MLEbin.res_no_peak$conf[1],
+     MLE.b.u.ci = MLEbin.res_no_peak$conf[2],
+     p.val.k1 =  GoF_res_K1_no_peak$Pvalue,
+     consistent.k1 =  GoF_res_K1_no_peak$consistent,
+     p.val.k2 =  GoF_res_K2_no_peak$Pvalue,
+     consistent.k2 =  GoF_res_K2_no_peak$consistent,
+     num_bins = num_bins_no_peak,
+     biomass = bin_dat$biomass$biomass)
+   } else{
+     s.out_no_peak <- data.frame(
+       analysis_id = unique(bin_dat$biomass$analysis_id),
+       #site_date = unique(raw_simp_this_id$site_date),
+       min.x = min(bin_dat$indiv$x), # change to binned$indiv
+       max.x = max(bin_dat$indiv$x),
+       n = length(bin_dat$indiv$x),
+       sum_bin_counts = sum(bin_dat$binVals$binCount),
+       MLE.b = NA,
+       MLE.b.l.ci =  NA,
+       MLE.b.u.ci = NA,
+       p.val.k1 =  NA,
+       consistent.k1 =  NA,
+       p.val.k2 =  NA,
+       consistent.k2 =  NA,
+       num_bins = num_bins_no_peak,
+       biomass = bin_dat$biomass$biomass)
+     
+   }
+   
+   return(s.out_no_peak)
+ }
+
+
+
+# mle from no cut tibbles
+mle_from_no_cut_tibbles <- function(input_dat, # list with no/cut bins
+                                 vecDiff = 1,
+                                 suppress.warnings = TRUE){
+  
+  bin_dat <- input_dat$no_cut
+  # for testing purposes
+  # bin_dat <- binned_tibbles[[7]]
+  # bin_dat <- binned_tibbles[[65]] # doesn't fit
+  
+  # get the number of bins
+  num_bins_peak <- unique(bin_dat$binVals$num_bins)
+  
+  # Peak Results ####
+  # MLE fit and results for the peaked data
+  
+  # bin breaks are the minima plus the max of the final bin:
+  binBreaks_peak <- c(dplyr::pull(bin_dat$binVals, binMin),
+                      dplyr::pull(bin_dat$binVals, binMax)[num_bins_peak])
+  
+  binCounts_peak <- dplyr::pull(bin_dat$binVals,
+                                binCount)
+  
+  MLEbin.res_peak <-  calcLike(negLL.PLB.binned,
+                               p = -1.5,
+                               w = binBreaks_peak,
+                               d = binCounts_peak,
+                               J = length(binCounts_peak),   # = num.bins
+                               vecDiff = vecDiff, # increase this if hit a bound
+                               suppress.warnings = suppress.warnings)   
+  
+  result_ok <- !is.character(MLEbin.res_peak)
+  
+  if(result_ok == TRUE){
+    
+  GoF_res_K1_peak <- GoF_PLB(bin_breaks = binBreaks_peak,
+                             bin_counts = binCounts_peak,
+                             b = MLEbin.res_peak$MLE,
+                             K = 1)
+  
+  GoF_res_K2_peak <- GoF_PLB(bin_breaks = binBreaks_peak,
+                             bin_counts = binCounts_peak,
+                             b = MLEbin.res_peak$MLE,
+                             K = 2)
+  
+    
+    s.out_peak <- data.frame(
+      analysis_id = unique(bin_dat$biomass$analysis_id),
+      #site_date = unique(raw_simp_this_id$site_date),
+      min.x = min(bin_dat$indiv$x), # change to binned$indiv
+      max.x = max(bin_dat$indiv$x),
+      n = length(bin_dat$indiv$x),
+      sum_bin_counts = sum(bin_dat$binVals$binCount),
+      MLE.b = MLEbin.res_peak$MLE,
+      MLE.b.l.ci =  MLEbin.res_peak$conf[1],
+      MLE.b.u.ci = MLEbin.res_peak$conf[2],
+      p.val.k1 =  GoF_res_K1_peak$Pvalue,
+      consistent.k1 =  GoF_res_K1_peak$consistent,
+      p.val.k2 =  GoF_res_K2_peak$Pvalue,
+      consistent.k2 =  GoF_res_K2_peak$consistent,
+      num_bins = num_bins_peak,
+      biomass = bin_dat$biomass$biomass)
+  } else{
+    s.out_peak <- data.frame(
+      analysis_id = unique(bin_dat$biomass$analysis_id),
+      #site_date = unique(raw_simp_this_id$site_date),
+      min.x = min(bin_dat$indiv$x), # change to binned$indiv
+      max.x = max(bin_dat$indiv$x),
+      n = length(bin_dat$indiv$x),
+      sum_bin_counts = sum(bin_dat$binVals$binCount),
+      MLE.b = NA,
+      MLE.b.l.ci =  NA,
+      MLE.b.u.ci = NA,
+      p.val.k1 =  NA,
+      consistent.k1 =  NA,
+      p.val.k2 =  NA,
+      consistent.k2 =  NA,
+      num_bins = num_bins_no_peak,
+      biomass = bin_dat$biomass$biomass)
+    
+  }
+  return(s.out_peak)
+}
+ 

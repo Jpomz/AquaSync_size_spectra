@@ -41,7 +41,9 @@ range(raw_simp$group_id)
 range(raw_simp$analysis_id)
 
 site_info <- raw_simp %>%
-  select(group_id, 
+  select(site_date, 
+         dat_id,
+         group_id, 
          analysis_id, analysis_group,
          #organism_group, organism_groups,
          geographical_latitude) %>%
@@ -54,15 +56,19 @@ raw_simp_to_split <- select(raw_simp,
                    ind_n)
 
 
+# smaller dataset to work out new functions
+# dat_split <- raw_simp_to_split %>%
+#   filter(analysis_id < 100) %>%
+#   split(.$analysis_id)
+# length(dat_split)
+
+# full data set ~15k sites
 dat_split <- raw_simp_to_split %>%
   split(raw_simp$analysis_id)
 length(dat_split)
 
-tictoc::tic()
-plan(cluster, workers = 10)
-
 vecDiff = 20 # bigger value = more estimates, 
-            # but longer time and some huge CI's
+# but longer time and some huge CI's
 
 possibly2 <- function (.f) {
   .f <- as_mapper(.f)
@@ -71,28 +77,44 @@ possibly2 <- function (.f) {
   }
 }
 
-mle_bin <- dat_split |>
+# new "bin_tibbles" fxn ####
+
+tictoc::tic()
+plan(cluster, workers = 10)
+
+binned_tibbles <- dat_split |>
   future_map(possibly2(function(.data){
-    fit_one_list(.data, vecDiff = vecDiff)
-    # calcLike(
-    #   negLL.fn = negLL.PLB.counts,
-    #   x = .data$body_mass,
-    #   c = .data$ind_n,
-    #   p = -1.5,
-    #   vecDiff = vecDiff)
+    bin_tibbles(.data)
     })
   )
 
 plan(cluster, workers = 1)
-tictoc::toc() # ~ 25 minutes
+tictoc::toc() 
+# time for "bin_tibbles" fxn [only 99 sites] = 4 seconds
+# all sites = 85 seconds
 
 
-mle_bin_rows <- list()
-for (i in 1:length(mle_bin)){
-  if(is.character(mle_bin[[i]])){
+# mle_from tibbles function
+tictoc::tic()
+plan(cluster, workers = 10)
+
+mle_res_no_cut <- binned_tibbles |>
+  future_map(possibly2(function(.data){
+    mle_from_no_cut_tibbles(.data)
+  })
+  )
+
+plan(cluster, workers = 1)
+tictoc::toc() 
+# time for 99 sites = 5.85 seconds
+# all sites = 137
+
+# MLE results without cutting
+mle_bin_no_cut_rows <- list()
+for (i in 1:length(mle_res_no_cut)){
+  if(is.character(mle_res_no_cut[[i]])){
     out <- data.frame(
-      analysis_id = as.numeric(names(mle_bin[i])),
-      site_date = NA,
+      analysis_id = as.numeric(names(mle_res_no_cut[i])),
       min.x = NA,
       max.x = NA,
       n = NA,
@@ -104,27 +126,27 @@ for (i in 1:length(mle_bin)){
       consistent.k1 = NA,
       p.val.k2 = NA,
       consistent.k2 = NA,
-      error = mle_bin[[i]][1])
+      error = mle_res_no_cut[[i]])
   } else{
-    out <- mle_bin[[i]]
+    out <- mle_res_no_cut[[i]]
     out$error <- NA
   }
-  mle_bin_rows[[i]] <- out
+  mle_bin_no_cut_rows[[i]] <- out
 }
 
-mle_bin_res_df <- bind_rows(mle_bin_rows)
+no_cut_res_df <- bind_rows(mle_bin_no_cut_rows)
 # mle_bin_res_df ####
 
-dim(mle_bin_res_df)
+dim(no_cut_res_df)
 
-mle_bin_res_df <- mle_bin_res_df %>%
-  left_join(site_info)
-dim(mle_bin_res_df)
+no_cut_res_df <- no_cut_res_df %>%
+  left_join(site_info, join_by(analysis_id))
+dim(no_cut_res_df)
 
-names(mle_bin_res_df)
+names(no_cut_res_df)
 
 # errors mle_bin_res ####
-mle_bin_res_df %>%
+no_cut_res_df %>%
   group_by(error) %>%
   count()
 
@@ -169,235 +191,72 @@ mle_bin_res_df %>%
 # 5 NA                                         15170
 
 
-# no cut-off ####
-(cut_test <- fit_one_list(dat_split$'7', cut_off = TRUE))
-(no_cut_test <- fit_one_list(dat_split$'7', cut_off = FALSE))
-
-
+# MLE results without cutting
 tictoc::tic()
 plan(cluster, workers = 10)
 
-vecDiff = 20 # bigger value = more estimates, 
-# but longer time and some huge CI's
-
-mle_bin_no_cut <- dat_split |>
+mle_res_cut <- binned_tibbles |>
   future_map(possibly2(function(.data){
-    fit_one_list(.data, vecDiff = vecDiff,
-                 cut_off = FALSE)
-    # calcLike(
-    #   negLL.fn = negLL.PLB.counts,
-    #   x = .data$body_mass,
-    #   c = .data$ind_n,
-    #   p = -1.5,
-    #   vecDiff = vecDiff)
+    mle_from_cut_tibbles(.data)
   })
   )
 
 plan(cluster, workers = 1)
-tictoc::toc() # ~ 23 minutes
+tictoc::toc() 
+# all sites = 160 seconds
 
-
-mle_bin_no_cut_rows <- list()
-for (i in 1:length(mle_bin_no_cut)){
-  if(is.character(mle_bin_no_cut[[i]])){
+mle_bin_cut_rows <- list()
+for (i in 1:length(mle_res_cut)){
+  if(is.character(mle_res_cut[[i]])){
     out <- data.frame(
-      analysis_id = as.numeric(names(mle_bin_no_cut[i])),
-      site_date=NA,
+      analysis_id = as.numeric(names(mle_res_cut[i])),
       min.x = NA,
       max.x = NA,
       n = NA,
       sum_bin_counts = NA,
-      MLE.b =NA,
+      MLE.b = NA,
       MLE.b.l.ci = NA,
-      MLE.b.u.ci =NA,
+      MLE.b.u.ci = NA,
       p.val.k1 = NA,
       consistent.k1 = NA,
       p.val.k2 = NA,
       consistent.k2 = NA,
-      error = mle_bin_no_cut[[i]][1])
+      error = mle_res_cut[[i]])
   } else{
-    out <- mle_bin_no_cut[[i]]
+    out <- mle_res_cut[[i]]
     out$error <- NA
   }
-  mle_bin_no_cut_rows[[i]] <- out
+  mle_bin_cut_rows[[i]] <- out
 }
 
+cut_res_df <- bind_rows(mle_bin_cut_rows)
+# mle_bin_res_df ####
 
-mle_bin_no_cut_res_df <- bind_rows(mle_bin_no_cut_rows)
+dim(cut_res_df)
 
-# mle_bin_no_cut_res_df ####
+cut_res_df <- cut_res_df %>%
+  left_join(site_info, join_by(analysis_id))
+dim(cut_res_df)
 
-dim(mle_bin_res_df)
+names(cut_res_df)
 
-mle_bin_no_cut_res_df <- mle_bin_no_cut_res_df %>%
-  left_join(site_info)
-dim(mle_bin_no_cut_res_df)
-
-names(mle_bin_no_cut_res_df)
-
-mle_bin_no_cut_res_df %>%
+# errors mle_bin_res ####
+cut_res_df %>%
   group_by(error) %>%
   count()
 
-# # A tibble: 5 × 2
-# # Groups:   error [5]
-# error                                          n
-# <chr>                                      <int>
-#   1 Need to make vecDiff larger - see R window  337
-# 2 missing value where TRUE/FALSE needed         13
-# 3 sum(binCounts) >= minCounts is not TRUE       238
-# 4 too many open devices                         82
-# 5 NA                                            15716
+# save outputs ####
+cut_res_df
+
+# mle bin results dataframe
+saveRDS(binned_tibbles,
+        "derived_data/bins_and_biomass.RDS")
+saveRDS(no_cut_res_df,
+        "derived_data/mle_no_cut_results.RDS")
+saveRDS(cut_res_df,
+        "derived_data/mle_cut_results.RDS")
 
 
-# ggplot(mle_bin_res_df,
-#        aes(x = abs(geographical_latitude),
-#            y = MLE.b,
-#            ymin = MLE.b.l.ci,
-#            ymax = MLE.b.u.ci,
-#            color = analysis_group)) +
-#   geom_pointrange(alpha = 0.5) +
-#   theme_bw() +
-#   #geom_smooth(method = "lm") +
-#   facet_wrap(~analysis_group)
-# 
-# ggplot(mle_bin_res_df,
-#        aes(x = MLE.b,
-#            fill = organism_groups)) +
-#   geom_density(alpha = 0.5, bounds = c(-5, 0))
-
-
-# binned tibbles ####
-# cutoff ####
-mle_res_id <- mle_bin_res_df %>%
-  filter(!is.na(MLE.b)) %>%
-  pull(analysis_id) %>%
-  unique()
-
-class(mle_res_id)
-
-dat_split[[as.character(mle_res_id[1])]]
-
-bin_tibble_list <- list()
-
-tictoc::tic()
-for(i in 1:length(mle_res_id)){
-  i_char <- as.character(mle_res_id[i])
-  
-  counts <- dat_split[[i_char]] %>%
-    select(x = body_mass,
-           counts = ind_n)
-  binned_with_peak <- bin_data(counts,
-                               binWidth = "2k")
-  
-  index_peak <- which.max(binned_with_peak$binVals$binSumNorm)
-  
-  binned <- binned_with_peak$binVals[index_peak:nrow(binned_with_peak$binVals), ]
-  
-  min_body <- binned$binMin[1]
-  
-  indiv <- binned_with_peak$indiv |>
-    filter(x >= min_body)
-  
-  indiv$analysis_id <- mle_res_id[i]
-  indiv <- left_join(indiv, site_info,
-                     by = "analysis_id")
-  binned$analysis_id <- mle_res_id[i]
-  binned <- left_join(binned, site_info,
-                      by = "analysis_id")
-  
-  bin_tibble_list[[i]] <- list(indiv = indiv,
-                               binned = binned)
-  # include biomass in list output?
-}
-tictoc::toc()
-# 141 sec
-# with left_join message = 1655
-# without left_join message = 212
-
-names(bin_tibble_list) <- as.character(mle_res_id)
-
-# cutoff ####
-# bin tibble without a cutoff 
-mle_res_no_id <- mle_bin_no_cut_res_df %>%
-  filter(!is.na(MLE.b)) %>%
-  pull(analysis_id) %>%
-  unique()
-
-class(mle_res_no_id)
-
-dat_split[[as.character(mle_res_no_id[1])]]
-
-bin_tibble_no_cutoff_list <- list()
-
-tictoc::tic()
-# repeat this but just binData(), no cut off at peak ####
-for(i in 1:length(mle_res_no_id)){
-  i_char <- as.character(mle_res_no_id[i])
-  
-  counts <- dat_split[[i_char]] %>%
-    select(x = body_mass,
-           counts = ind_n)
-  binned_with_peak <- bin_data(counts,
-                               binWidth = "2k")
-  
-  binned <- binned_with_peak$binVals
-  
-  indiv <- binned_with_peak$indiv
-  
-  indiv$analysis_id <- mle_res_id[i]
-  indiv <- left_join(indiv, site_info,
-                     by = "analysis_id")
-  binned$analysis_id <- mle_res_id[i]
-  binned <- left_join(binned, site_info,
-                      by = "analysis_id")
-  
-  bin_tibble_no_cutoff_list[[i]] <- list(indiv = indiv,
-                                         binned = binned)
-  # include biomass in list output?
-}
-tictoc::toc()
-# time = 208 sec
-
-names(bin_tibble_no_cutoff_list) <- as.character(mle_res_no_id)
-
-### Biomass ####
-# sum up the individuals for each group, make a data.frame
-
-# repeat following without cut off ####
-# cutoff ####
-biomass_list <- list()
-for(i in 1:length(bin_tibble_list)){
-  indiv <- bin_tibble_list[[i]]$indiv
-  
-  sum_biomass <- sum(indiv$x * indiv$counts)
-  # x = individual body size
-  # counts = number of those individuals 
-  out <- data.frame(
-    analysis_id = as.numeric(names(bin_tibble_list)[i]),
-    biomass = sum_biomass)
-  biomass_list[[i]] <- out
-}
-biomass_df <- bind_rows(biomass_list)
-biomass_df <- biomass_df %>%
-  left_join(site_info) 
-
-# no cutoff ####
-biomass_no_cut_list <- list()
-for(i in 1:length(bin_tibble_no_cutoff_list)){
-  indiv <- bin_tibble_no_cutoff_list[[i]]$indiv
-  
-  sum_biomass <- sum(indiv$x * indiv$counts)
-  # x = individual body size
-  # counts = number of those individuals 
-  out <- data.frame(
-    analysis_id = as.numeric(names(bin_tibble_no_cutoff_list)[i]),
-    biomass = sum_biomass)
-  biomass_no_cut_list[[i]] <- out
-}
-biomass_no_cut_df <- bind_rows(biomass_no_cut_list)
-biomass_no_cut_df <- biomass_no_cut_df %>%
-  left_join(site_info) 
 
 # biomass_df|>
 #   ggplot(aes(x = abs(geographical_latitude),
