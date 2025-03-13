@@ -6,6 +6,26 @@ library(sizeSpectra)
 source("new_GoF_functions.R")   # load in new functions
 source("bin_data.R")
 
+profLike <- function (negLL.fn, MLE, minNegLL,
+                      vecDiff = 0.5,
+                      vecInc = 0.001, 
+                      ...) 
+{
+  vec = seq(MLE - vecDiff, MLE + vecDiff, vecInc)
+  LLvals = sapply(X = vec, FUN = negLL.fn, ...)
+  critVal = minNegLL + qchisq(0.95, 1)/2
+  vecIn95 = vec[LLvals < critVal]
+  conf = c(min(vecIn95), max(vecIn95))
+  if (conf[1] == min(vec) | conf[2] == max(vec)) {
+    # dev.new()
+    # plot(vec, LLvals)
+    # abline(h = critVal, col = "red")
+    # dev.off()
+    stop("Need to make vecDiff larger - see R window")
+  }
+  return(conf)
+}
+
 raw_orig <- readRDS("derived_data/formatted_files_stitched_filtered_Dec-2024.RDS")
 
 raw_simp <- raw_orig |>
@@ -67,9 +87,6 @@ dat_split <- raw_simp_to_split %>%
   split(raw_simp$analysis_id)
 length(dat_split)
 
-vecDiff = 20 # bigger value = more estimates, 
-# but longer time and some huge CI's
-
 possibly2 <- function (.f) {
   .f <- as_mapper(.f)
   function(...) {
@@ -80,7 +97,7 @@ possibly2 <- function (.f) {
 # new "bin_tibbles" fxn ####
 
 tictoc::tic()
-plan(cluster, workers = 10)
+plan(cluster, workers = 14)
 
 binned_tibbles <- dat_split |>
   future_map(possibly2(function(.data){
@@ -92,15 +109,22 @@ plan(cluster, workers = 1)
 tictoc::toc() 
 # time for "bin_tibbles" fxn [only 99 sites] = 4 seconds
 # all sites = 85 seconds
+# workers = 14; all sites = 64s
 
 
-# mle_from tibbles function
+
+# mle_from tibbles function ####
+# no cutting
+vecDiff = 20 # bigger value = more estimates, 
+# but longer time and some huge CI's
+
 tictoc::tic()
-plan(cluster, workers = 10)
+plan(cluster, workers = 14)
 
 mle_res_no_cut <- binned_tibbles |>
   future_map(possibly2(function(.data){
-    mle_from_no_cut_tibbles(.data)
+    mle_from_no_cut_tibbles(.data,
+                            vecDiff = vecDiff)
   })
   )
 
@@ -108,6 +132,8 @@ plan(cluster, workers = 1)
 tictoc::toc() 
 # time for 99 sites = 5.85 seconds
 # all sites = 137
+# workers = 14; vecDiff = 20; all sites = 21 minutes
+
 
 # MLE results without cutting
 mle_bin_no_cut_rows <- list()
@@ -135,6 +161,9 @@ for (i in 1:length(mle_res_no_cut)){
 }
 
 no_cut_res_df <- bind_rows(mle_bin_no_cut_rows)
+# which ones have which error?
+no_cut_res_df
+
 # mle_bin_res_df ####
 
 dim(no_cut_res_df)
@@ -176,6 +205,26 @@ no_cut_res_df %>%
 # 5 NA                                         14197 
 # these are the estimates
 
+# new function problems ####
+# after new function, following are new errors
+# $ operator is invalid for atomic vectors      1
+# Parameters out of bounds in negLL.PLB        265
+# non-finite value supplied by 'nlm'            95
+
+# possible solutions
+# 1 modify profLike() to have dev.off() 
+# seems like a few less "too many devices open" errors
+# but actually more on the "cut" round
+# delete Rplots* files and try again
+# didn't seem to help
+
+# Modify profLike to not make a plot 
+
+# parameters out of bounds
+# maybe in profLike vec = argument
+# also need to check the negLL.plb function
+
+
 #### vecDiff = 20 ####
 # time = 1327 seconds (22 minutes)
 # estimates = 15,170
@@ -191,19 +240,25 @@ no_cut_res_df %>%
 # 5 NA                                         15170
 
 
-# MLE results without cutting
+# MLE results with cutting ####
+# remove pdfs from previous profLike()
+pdf_to_delete <- list.files(pattern = "Rplots*")
+file.remove(pdf_to_delete)
+
 tictoc::tic()
-plan(cluster, workers = 10)
+plan(cluster, workers = 14)
 
 mle_res_cut <- binned_tibbles |>
   future_map(possibly2(function(.data){
-    mle_from_cut_tibbles(.data)
+    mle_from_cut_tibbles(.data,
+                         vecDiff = vecDiff)
   })
   )
 
 plan(cluster, workers = 1)
 tictoc::toc() 
 # all sites = 160 seconds
+# all sites, vecDiff = 20; workers = 14 : 
 
 mle_bin_cut_rows <- list()
 for (i in 1:length(mle_res_cut)){
@@ -244,6 +299,11 @@ names(cut_res_df)
 cut_res_df %>%
   group_by(error) %>%
   count()
+
+# remove pdfs from profLike()
+pdf_to_delete <- list.files(pattern = "Rplots*")
+file.remove(pdf_to_delete)
+
 
 # save outputs ####
 cut_res_df

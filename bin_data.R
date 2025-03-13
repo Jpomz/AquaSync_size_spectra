@@ -432,7 +432,7 @@ fit_one_list <- function(raw_simp,
    # bin_dat <- binned_tibbles[[65]] # doesn't fit
    
    # get the number of bins
-   num_bins_no_peak <- unique(bin_dat$binVals$num_bins)
+   num_bins_no_peak <- nrow(bin_dat$binVals)
    
    
    # Results for no peak ####
@@ -447,7 +447,9 @@ fit_one_list <- function(raw_simp,
                                    p = -1.5,
                                    w = binBreaks_no_peak,
                                    d = binCounts_no_peak,
-                                   J = length(binCounts_no_peak),   # = num.bins
+                                   J = length(binCounts_no_peak),
+                                   xmin = min(binBreaks_no_peak),
+                                   xmax = max(binBreaks_no_peak),
                                    vecDiff = vecDiff,
                                    suppress.warnings = suppress.warnings)             # increase this if hit a bound
    
@@ -517,7 +519,7 @@ mle_from_no_cut_tibbles <- function(input_dat, # list with no/cut bins
   # bin_dat <- binned_tibbles[[65]] # doesn't fit
   
   # get the number of bins
-  num_bins_peak <- unique(bin_dat$binVals$num_bins)
+  num_bins_peak <- nrow(bin_dat$binVals)
   
   # Peak Results ####
   # MLE fit and results for the peaked data
@@ -534,6 +536,8 @@ mle_from_no_cut_tibbles <- function(input_dat, # list with no/cut bins
                                w = binBreaks_peak,
                                d = binCounts_peak,
                                J = length(binCounts_peak),   # = num.bins
+                               xmin = min(binBreaks_peak),
+                               xmax = max(binBreaks_peak),
                                vecDiff = vecDiff, # increase this if hit a bound
                                suppress.warnings = suppress.warnings)   
   
@@ -567,7 +571,8 @@ mle_from_no_cut_tibbles <- function(input_dat, # list with no/cut bins
       p.val.k2 =  GoF_res_K2_peak$Pvalue,
       consistent.k2 =  GoF_res_K2_peak$consistent,
       num_bins = num_bins_peak,
-      biomass = bin_dat$biomass$biomass)
+      biomass = bin_dat$biomass$biomass,
+      vecDiff = vecDiff)
   } else{
     s.out_peak <- data.frame(
       analysis_id = unique(bin_dat$biomass$analysis_id),
@@ -584,7 +589,8 @@ mle_from_no_cut_tibbles <- function(input_dat, # list with no/cut bins
       p.val.k2 =  NA,
       consistent.k2 =  NA,
       num_bins = num_bins_no_peak,
-      biomass = bin_dat$biomass$biomass)
+      biomass = bin_dat$biomass$biomass,
+      vecDiff = vecDiff)
     
   }
   return(s.out_peak)
